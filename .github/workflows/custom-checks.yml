@@ -23,6 +23,11 @@ jobs:
           $dashboardCommit = git ls-tree HEAD dashboard | ForEach-Object { ($_ -split '\s+')[2] }
           git clone https://github.com/mxh110708/mxh-route-dashboard.git dashboard
           git -C dashboard checkout $dashboardCommit
+      - name: Initialize core source
+        shell: pwsh
+        run: |
+          $coreRevision = (Get-Content version.json -Raw | ConvertFrom-Json).version
+          git clone --depth 1 --branch "v$coreRevision" https://github.com/SagerNet/sing-box.git ../sing-box
       - uses: pnpm/action-setup@v4
         with:
           version: 11.19.0
@@ -32,6 +37,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm -C dashboard install --frozen-lockfile
+      - run: pnpm -C dashboard generate
+      - run: pnpm generate
       - run: pnpm test:update-source
       - run: pnpm test:runtime-config
       - run: pnpm typecheck
