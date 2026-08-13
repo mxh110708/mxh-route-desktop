@@ -15,8 +15,13 @@ import type {
   ProfilesState,
 } from "../shared/ipc";
 import { writeApplicationCacheFile } from "./appCache";
-import { desktopService } from "./daemon";
+import { desktopService, managedService } from "./daemon";
 import { Preference, settingsDatabase } from "./database";
+import {
+  buildRuntimeConfig,
+  parseCaptureMode,
+  type CaptureMode,
+} from "./runtimeConfig";
 import { serviceStartOptions } from "./settings";
 import { userAgent } from "./userAgent";
 import { applicationService } from "./worker";
@@ -89,6 +94,12 @@ const selectedProfilePreference = new Preference<string | null>(
   },
 );
 
+const captureModePreference = new Preference<CaptureMode>(
+  "capture_mode",
+  "tun",
+  parseCaptureMode,
+);
+
 function profileFromRow(row: ProfileRow): ProfileMetadata {
   const profile: ProfileMetadata = {
     id: row.id,
@@ -152,7 +163,11 @@ export function onProfilesChanged(listener: () => void) {
 }
 
 export function profilesState(): ProfilesState {
-  return { selectedId: selectedProfileId(), profiles: listProfiles() };
+  return {
+    selectedId: selectedProfileId(),
+    profiles: listProfiles(),
+    captureMode: captureModePreference.get(),
+  };
 }
 
 function notifyChanged() {
@@ -329,14 +344,30 @@ async function encodeProfileData(id: string): Promise<Uint8Array> {
   return encoded.data;
 }
 
-async function startServiceWithContent(content: string): Promise<void> {
-  if (desktopService === null) {
+let serviceOperation: Promise<void> = Promise.resolve();
+
+function runServiceOperation<Result>(operation: () => Promise<Result>): Promise<Result> {
+  const result = serviceOperation.catch(() => {}).then(operation);
+  serviceOperation = result.then(
+    () => {},
+    () => {},
+  );
+  return result;
+}
+
+async function startServiceWithContent(
+  content: string,
+  captureMode = captureModePreference.get(),
+): Promise<void> {
+  if (desktopService === null || managedService === null) {
     throw new Error("daemon is not available");
   }
+  const runtimeContent = buildRuntimeConfig(content, captureMode);
   await desktopService.startService({
-    configContent: content,
+    configContent: runtimeContent,
     options: await serviceStartOptions(),
   });
+  await managedService.setSystemProxyEnabled({ enabled: captureMode === "system-proxy" });
 }
 
 async function reloadIfSelectedAndRunning(id: string): Promise<void> {
@@ -346,7 +377,8 @@ async function reloadIfSelectedAndRunning(id: string): Promise<void> {
   if (daemonState.status !== ServiceStatus_Type.STARTED) {
     return;
   }
-  await startServiceWithContent(await readFile(contentPath(id), "utf-8"));
+  const content = await readFile(contentPath(id), "utf-8");
+  await runServiceOperation(() => startServiceWithContent(content));
 }
 
 function intervalOrDefault(profile: ProfileMetadata): number {
@@ -403,7 +435,39 @@ export async function startSelectedProfile(): Promise<void> {
     throw new Error("no profile selected");
   }
   const content = await readFile(contentPath(selectedId), "utf-8");
-  await startServiceWithContent(content);
+  await runServiceOperation(() => startServiceWithContent(content));
+}
+
+async function setCaptureMode(modeValue: unknown): Promise<void> {
+  const mode = parseCaptureMode(modeValue);
+  const previousMode = captureModePreference.get();
+  if (mode === previousMode) {
+    return;
+  }
+  await runServiceOperation(async () => {
+    if (daemonState.status === ServiceStatus_Type.STARTED) {
+      const selectedId = selectedProfileId();
+      if (selectedId === null) {
+        throw new Error("no profile selected");
+      }
+      const content = await readFile(contentPath(selectedId), "utf-8");
+      try {
+        await startServiceWithContent(content, mode);
+      } catch (error) {
+        try {
+          await startServiceWithContent(content, previousMode);
+        } catch (rollbackError) {
+          throw new AggregateError(
+            [error, rollbackError],
+            "capture mode switch and rollback both failed",
+          );
+        }
+        throw error;
+      }
+    }
+    captureModePreference.set(mode);
+    notifyChanged();
+  });
 }
 
 let updateTimer: NodeJS.Timeout | null = null;
@@ -614,6 +678,10 @@ const handlers: Record<
 
   async updateRemote(id: string): Promise<void> {
     await updateRemoteProfile(id);
+  },
+
+  async setCaptureMode(mode: CaptureMode): Promise<void> {
+    await setCaptureMode(mode);
   },
 
   async startService(): Promise<void> {

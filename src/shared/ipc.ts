@@ -120,6 +120,7 @@ export interface OpenConnectBrowserBridge {
 export type ProfilesResult = { ok: true; value: unknown } | { ok: false; error: string };
 
 export type ProfileType = "local" | "remote";
+export type CaptureMode = "system-proxy" | "tun";
 
 export interface ProfileMetadata {
   id: string;
@@ -134,6 +135,7 @@ export interface ProfileMetadata {
 export interface ProfilesState {
   selectedId: string | null;
   profiles: ProfileMetadata[];
+  captureMode: CaptureMode;
 }
 
 export interface ProfileCreate {
@@ -162,6 +164,7 @@ export interface ProfilesBridge {
   readContent(id: string): Promise<string>;
   writeContent(id: string, content: string): Promise<void>;
   updateRemote(id: string): Promise<void>;
+  setCaptureMode(mode: CaptureMode): Promise<void>;
   startService(): Promise<void>;
   takeOverService(): Promise<void>;
   pickImportFile(): Promise<{ fileName: string; data: Uint8Array } | null>;

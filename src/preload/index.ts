@@ -186,6 +186,7 @@ const bridge: DesktopBridge = {
     readContent: (id) => callProfiles("readContent", id),
     writeContent: (id, content) => callProfiles("writeContent", id, content),
     updateRemote: (id) => callProfiles("updateRemote", id),
+    setCaptureMode: (mode) => callProfiles("setCaptureMode", mode),
     startService: () => callProfiles("startService"),
     takeOverService: () => callProfiles("takeOverService"),
     pickImportFile: () => callProfiles("pickImportFile"),
