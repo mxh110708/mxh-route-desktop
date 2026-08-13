@@ -6,6 +6,8 @@ param(
     [string]$NodeExecutable = "node",
     [string]$GoExecutable = "go",
     [string]$PnpmScript,
+    [string]$CargoHome,
+    [string]$RustupHome,
     [string]$Proxy
 )
 
@@ -40,7 +42,23 @@ $previousPackageManagerSwitch = $env:npm_config_manage_package_manager_versions
 $previousHTTPProxy = $env:HTTP_PROXY
 $previousHTTPSProxy = $env:HTTPS_PROXY
 $previousNoProxy = $env:NO_PROXY
+$previousCargoHome = $env:CARGO_HOME
+$previousRustupHome = $env:RUSTUP_HOME
 $env:npm_config_manage_package_manager_versions = "false"
+if ($CargoHome -or $RustupHome) {
+    if (-not $CargoHome -or -not $RustupHome) {
+        throw "Both CargoHome and RustupHome are required for a portable Rust toolchain."
+    }
+    $cargoBinaryDirectory = Join-Path $CargoHome "bin"
+    if (-not (Test-Path -LiteralPath (Join-Path $cargoBinaryDirectory "cargo.exe") -PathType Leaf) -or
+        -not (Test-Path -LiteralPath (Join-Path $cargoBinaryDirectory "rustc.exe") -PathType Leaf) -or
+        -not (Test-Path -LiteralPath (Join-Path $cargoBinaryDirectory "rustup.exe") -PathType Leaf)) {
+        throw "The requested portable Rust toolchain is incomplete."
+    }
+    $env:CARGO_HOME = $CargoHome
+    $env:RUSTUP_HOME = $RustupHome
+    $env:PATH = "$cargoBinaryDirectory;$env:PATH"
+}
 if ($Proxy) {
     $env:HTTP_PROXY = $Proxy
     $env:HTTPS_PROXY = $Proxy
@@ -79,4 +97,6 @@ try {
     $env:HTTP_PROXY = $previousHTTPProxy
     $env:HTTPS_PROXY = $previousHTTPSProxy
     $env:NO_PROXY = $previousNoProxy
+    $env:CARGO_HOME = $previousCargoHome
+    $env:RUSTUP_HOME = $previousRustupHome
 }
