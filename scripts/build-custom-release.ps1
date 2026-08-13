@@ -5,7 +5,8 @@ param(
     [string]$CertificatePasswordFile,
     [string]$NodeExecutable = "node",
     [string]$GoExecutable = "go",
-    [string]$PnpmScript
+    [string]$PnpmScript,
+    [string]$Proxy
 )
 
 $ErrorActionPreference = "Stop"
@@ -35,6 +36,16 @@ if ($PnpmScript) {
 $resolvedNode = (Get-Command $NodeExecutable -ErrorAction Stop).Source
 $resolvedGo = (Get-Command $GoExecutable -ErrorAction Stop).Source
 $env:PATH = "$(Split-Path -Parent $resolvedNode);$(Split-Path -Parent $resolvedGo);$env:PATH"
+$previousPackageManagerSwitch = $env:npm_config_manage_package_manager_versions
+$previousHTTPProxy = $env:HTTP_PROXY
+$previousHTTPSProxy = $env:HTTPS_PROXY
+$previousNoProxy = $env:NO_PROXY
+$env:npm_config_manage_package_manager_versions = "false"
+if ($Proxy) {
+    $env:HTTP_PROXY = $Proxy
+    $env:HTTPS_PROXY = $Proxy
+    $env:NO_PROXY = "127.0.0.1,localhost"
+}
 $env:SING_BOX_CUSTOM_CERTIFICATE_FILE = $CertificateFile
 $env:SING_BOX_CUSTOM_CERTIFICATE_PASSWORD_FILE = $CertificatePasswordFile
 
@@ -64,4 +75,8 @@ try {
     Pop-Location
     Remove-Item Env:SING_BOX_CUSTOM_CERTIFICATE_FILE -ErrorAction SilentlyContinue
     Remove-Item Env:SING_BOX_CUSTOM_CERTIFICATE_PASSWORD_FILE -ErrorAction SilentlyContinue
+    $env:npm_config_manage_package_manager_versions = $previousPackageManagerSwitch
+    $env:HTTP_PROXY = $previousHTTPProxy
+    $env:HTTPS_PROXY = $previousHTTPSProxy
+    $env:NO_PROXY = $previousNoProxy
 }
