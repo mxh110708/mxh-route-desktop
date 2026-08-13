@@ -198,6 +198,7 @@ export function createDesktopHost(): DesktopHost {
       readContent: (id) => bridge.profiles.readContent(id),
       writeContent: (id, content) => bridge.profiles.writeContent(id, content),
       updateRemote: (id) => bridge.profiles.updateRemote(id),
+      setCaptureMode: (mode) => bridge.profiles.setCaptureMode(mode),
       pickImportFile: () => bridge.profiles.pickImportFile(),
       exportFile: (id) => bridge.profiles.exportFile(id),
       importData: (fileName, data) => bridge.profiles.importData(fileName, data),
