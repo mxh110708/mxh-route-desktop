@@ -68,6 +68,15 @@ function runChecked(
   }
 }
 
+function runPnpm(commandArguments: string[]): void {
+  const pnpmScript = process.env.npm_execpath;
+  if (pnpmScript && fs.existsSync(pnpmScript)) {
+    runChecked(process.execPath, [pnpmScript, ...commandArguments]);
+    return;
+  }
+  runChecked("pnpm", commandArguments);
+}
+
 function verifyGoVersion() {
   const result = spawnSync("go", ["env", "GOVERSION"], {
     cwd: singBoxDirectory,
@@ -124,10 +133,10 @@ function ensureGenerated() {
     );
   }
   if (!fs.existsSync(path.join(repositoryRoot, "dashboard", "node_modules"))) {
-    runChecked("pnpm", ["-C", "dashboard", "install", "--frozen-lockfile"]);
+    runPnpm(["-C", "dashboard", "install", "--frozen-lockfile"]);
   }
-  runChecked("pnpm", ["-C", "dashboard", "generate"]);
-  runChecked("pnpm", ["generate"]);
+  runPnpm(["-C", "dashboard", "generate"]);
+  runPnpm(["generate"]);
 }
 
 function buildBoxdd(
@@ -228,6 +237,28 @@ function stageWindowsCronetLibrary(
 }
 
 function readWindowsSigningConfiguration(): WindowsSigningConfiguration {
+  const environmentCertificateFile =
+    process.env.SING_BOX_CUSTOM_CERTIFICATE_FILE;
+  const environmentPasswordFile =
+    process.env.SING_BOX_CUSTOM_CERTIFICATE_PASSWORD_FILE;
+  if (environmentCertificateFile || environmentPasswordFile) {
+    if (!environmentCertificateFile || !environmentPasswordFile) {
+      throw new Error(
+        "both custom certificate and password file environment variables are required",
+      );
+    }
+    const certificateFile = path.resolve(environmentCertificateFile);
+    if (!fs.existsSync(certificateFile)) {
+      throw new Error("custom Windows signing certificate does not exist");
+    }
+    const certificatePassword = fs
+      .readFileSync(path.resolve(environmentPasswordFile), "utf-8")
+      .trimEnd();
+    if (certificatePassword === "") {
+      throw new Error("custom Windows signing password file is empty");
+    }
+    return { certificateFile, certificatePassword };
+  }
   let value: unknown;
   try {
     value = JSON.parse(fs.readFileSync(signingConfigurationPath, "utf-8"));
@@ -266,7 +297,7 @@ async function runWindowsElectronBuilder(
   signingConfiguration: WindowsSigningConfiguration,
 ): Promise<void> {
   const artifactName = customWindowsPackage
-    ? `sing-box-Custom-\${version}-windows-${artifactArchitecture}${developmentPackage ? "-dev" : ""}.\${ext}`
+    ? `MXH-Route-\${version}-windows-${artifactArchitecture}${developmentPackage ? "-dev" : ""}.\${ext}`
     : `SFW-\${version}-${artifactArchitecture}${developmentPackage ? "-dev" : ""}.\${ext}`;
   const unpackedDirectory = {
     x64: "win-unpacked",
@@ -423,6 +454,9 @@ async function packageWindows() {
     (selectedArchitectures.length !== 1 || selectedArchitectures[0].artifactArchitecture !== "x64")
   ) {
     throw new Error("custom Windows packages currently support only x64");
+  }
+  if (customWindowsPackage) {
+    runPnpm(["icons"]);
   }
   runChecked("electron-vite", ["build"]);
   console.info(

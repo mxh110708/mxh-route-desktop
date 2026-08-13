@@ -6,9 +6,9 @@ export interface UpdateAsset {
 
 const OFFICIAL_RELEASES_URL = "https://api.github.com/repos/SagerNet/sing-box/releases";
 const CUSTOM_RELEASES_URL =
-  "https://api.github.com/repos/mxh110708/sing-box-for-desktop-custom/releases";
+  "https://api.github.com/repos/mxh110708/mxh-route-desktop/releases";
 const CUSTOM_DOWNLOAD_PATH_PREFIX =
-  "/mxh110708/sing-box-for-desktop-custom/releases/download/";
+  "/mxh110708/mxh-route-desktop/releases/download/";
 
 const OFFICIAL_WINDOWS_UPDATE_ARCHITECTURES: Partial<
   Record<NodeJS.Architecture, string[]>
@@ -37,7 +37,7 @@ export function updatesSupported(
 }
 
 export function isChannelVersion(customBuild: boolean, version: string): boolean {
-  return !customBuild || /-custom\.[0-9]+$/u.test(version);
+  return !customBuild || /(?:\.mxh\.[0-9]+|-mxh\.[0-9]+)$/u.test(version);
 }
 
 export function selectWindowsAsset(
@@ -50,7 +50,7 @@ export function selectWindowsAsset(
     if (architecture !== "x64") {
       return null;
     }
-    const expectedName = `sing-box-Custom-${version}-windows-x64.exe`;
+    const expectedName = `MXH-Route-${version}-windows-x64.exe`;
     return assets.find((asset) => asset.name === expectedName) ?? null;
   }
 

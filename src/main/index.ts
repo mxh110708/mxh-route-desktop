@@ -52,13 +52,15 @@ import {
 
 let handlingFatalError = false;
 
+const APPLICATION_LABEL = __CUSTOM_BUILD__ ? "MXH Route" : "sing-box";
+
 function fatalErrorMessage(error: unknown, capture: RuntimeCrashCaptureResult): string {
   const errorObject = error instanceof Error ? error : new Error(String(error));
   const reason = `${errorObject.name}: ${errorObject.message}`;
   if (capture.reportPath !== null) {
-    return `sing-box stopped unexpectedly.\n\n${reason}\n\nCrash report:\n${capture.reportPath}`;
+    return `${APPLICATION_LABEL} stopped unexpectedly.\n\n${reason}\n\nCrash report:\n${capture.reportPath}`;
   }
-  return `sing-box stopped unexpectedly.\n\n${reason}\n\nThe crash report could not be saved:\n${capture.saveError ?? "unknown error"}`;
+  return `${APPLICATION_LABEL} stopped unexpectedly.\n\n${reason}\n\nThe crash report could not be saved:\n${capture.saveError ?? "unknown error"}`;
 }
 
 function handleFatal(kind: string, error: unknown): never {
@@ -69,7 +71,7 @@ function handleFatal(kind: string, error: unknown): never {
   const capture = captureRuntimeCrash(kind, error);
   const message = fatalErrorMessage(error, capture);
   try {
-    dialog.showErrorBox("sing-box", message);
+    dialog.showErrorBox(APPLICATION_LABEL, message);
   } catch (dialogError) {
     process.stderr.write(`${message}\n\nFailed to show the error dialog: ${String(dialogError)}\n`);
   }
@@ -126,7 +128,7 @@ function createWindow(): BrowserWindow {
       MAIN_WINDOW_MINIMUM_HEIGHT,
       restoredBounds?.height ?? MAIN_WINDOW_MINIMUM_HEIGHT,
     ),
-    title: __CUSTOM_BUILD__ ? "sing-box Custom" : "sing-box",
+    title: __CUSTOM_BUILD__ ? "MXH Route" : "sing-box",
     show: false,
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
     trafficLightPosition: process.platform === "darwin" ? { x: 18, y: 19 } : undefined,

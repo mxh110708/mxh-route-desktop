@@ -43,7 +43,7 @@ try {
 
     $process = [System.Diagnostics.Process]::Start($processStartInformation)
     if ($null -eq $process) {
-        throw "The sing-box service command did not start."
+        throw "The MXH Route service command did not start."
     }
     $standardOutputTask = $process.StandardOutput.ReadToEndAsync()
     $standardErrorTask = $process.StandardError.ReadToEndAsync()
@@ -61,7 +61,7 @@ try {
         $diagnosticOutput += $standardError
     }
     if ($processExitCode -ne 0 -and $diagnosticOutput.Length -eq 0) {
-        $diagnosticOutput = "sing-box service $ServiceAction exited with code $processExitCode without diagnostic output."
+        $diagnosticOutput = "MXH Route service $ServiceAction exited with code $processExitCode without diagnostic output."
     }
     [System.IO.File]::WriteAllText($OutputPath, $diagnosticOutput, [System.Text.Encoding]::Unicode)
     exit $processExitCode
@@ -77,9 +77,9 @@ try {
         $currentException = $currentException.InnerException
     }
     if ($null -ne $nativeErrorCode) {
-        $diagnosticOutput = "Failed to start sing-box service $ServiceAction (Win32 error $nativeErrorCode): $($exception.Message)"
+        $diagnosticOutput = "Failed to start MXH Route service $ServiceAction (Win32 error $nativeErrorCode): $($exception.Message)"
     } else {
-        $diagnosticOutput = "Failed to start sing-box service $ServiceAction`: $($exception.Message)"
+        $diagnosticOutput = "Failed to start MXH Route service $ServiceAction`: $($exception.Message)"
     }
     [System.IO.File]::WriteAllText($OutputPath, $diagnosticOutput, [System.Text.Encoding]::Unicode)
     if ($null -ne $nativeErrorCode -and $nativeErrorCode -gt 0) {

@@ -1,20 +1,19 @@
 {
-  "name": "sing-box",
-  "desktopName": "sing-box.desktop",
+  "name": "mxh-route",
+  "desktopName": "mxh-route.desktop",
   "private": true,
-  "description": "Windows and Linux client for sing-box, the universal proxy platform.",
-  "homepage": "https://github.com/sagernet/sing-box-for-desktop",
+  "description": "Personal Windows routing client based on an upstream universal proxy platform.",
+  "homepage": "https://github.com/mxh110708/mxh-route-desktop",
   "license": "GPL-3.0-or-later",
   "author": {
-    "name": "SagerNet",
-    "email": "contact-sagernet@sekai.icu"
+    "name": "mxh110708"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/SagerNet/sing-box-for-desktop.git"
+    "url": "git+https://github.com/mxh110708/mxh-route-desktop.git"
   },
   "type": "module",
-  "packageManager": "pnpm@11.13.0",
+  "packageManager": "pnpm@11.19.0",
   "engines": {
     "node": "26.5.0"
   },
@@ -58,6 +57,7 @@
     "@fontsource-variable/source-serif-4": "^5.2.9",
     "@fontsource/ibm-plex-mono": "^5.2.7",
     "@fontsource/noto-color-emoji": "^5.2.12",
+    "@resvg/resvg-js": "2.6.2",
     "@types/cross-spawn": "^6.0.6",
     "@types/node": "^26.1.1",
     "@types/react": "^19.2.17",

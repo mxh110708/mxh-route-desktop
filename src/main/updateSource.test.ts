@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { gt } from "semver";
 
 import {
   isChannelVersion,
@@ -11,16 +12,16 @@ import {
 } from "./updateSource";
 
 const customAsset: UpdateAsset = {
-  name: "sing-box-Custom-1.14.0-beta.14-custom.2-windows-x64.exe",
+  name: "MXH-Route-1.14.0-beta.14.mxh.2-windows-x64.exe",
   browser_download_url:
-    "https://github.com/mxh110708/sing-box-for-desktop-custom/releases/download/v1.14.0-beta.14-custom.2/sing-box-Custom-1.14.0-beta.14-custom.2-windows-x64.exe",
+    "https://github.com/mxh110708/mxh-route-desktop/releases/download/v1.14.0-beta.14.mxh.2/MXH-Route-1.14.0-beta.14.mxh.2-windows-x64.exe",
   size: 1,
 };
 
 test("custom builds use only the personal public release channel", () => {
   assert.equal(
     releasesURL(true),
-    "https://api.github.com/repos/mxh110708/sing-box-for-desktop-custom/releases",
+    "https://api.github.com/repos/mxh110708/mxh-route-desktop/releases",
   );
   assert.equal(
     releasesURL(false),
@@ -36,20 +37,31 @@ test("custom updates are limited to the packaged Windows architecture", () => {
 
 test("custom builds reject official versions and installer names", () => {
   assert.equal(isChannelVersion(true, "1.14.0-beta.14"), false);
-  assert.equal(isChannelVersion(true, "1.14.0-beta.14-custom.2"), true);
+  assert.equal(isChannelVersion(true, "1.14.0-beta.14.mxh.2"), true);
   assert.equal(
-    selectWindowsAsset(true, "x64", "1.14.0-beta.14-custom.2", [customAsset]),
+    selectWindowsAsset(true, "x64", "1.14.0-beta.14.mxh.2", [customAsset]),
     customAsset,
   );
   assert.equal(
-    selectWindowsAsset(true, "x64", "1.14.0-beta.14-custom.2", [
+    selectWindowsAsset(true, "x64", "1.14.0-beta.14.mxh.2", [
       { ...customAsset, name: "SFW-1.14.0-beta.14-x64.exe" },
     ]),
     null,
   );
   assert.equal(
-    selectWindowsAsset(true, "x64", "1.14.0-beta.14-custom.3", [customAsset]),
+    selectWindowsAsset(true, "x64", "1.14.0-beta.14.mxh.3", [customAsset]),
     null,
+  );
+});
+
+test("custom semantic versions preserve upstream and revision ordering", () => {
+  assert.equal(
+    gt("1.14.0-beta.14.mxh.10", "1.14.0-beta.14.mxh.2"),
+    true,
+  );
+  assert.equal(
+    gt("1.14.0-beta.15.mxh.1", "1.14.0-beta.14.mxh.99"),
+    true,
   );
 });
 

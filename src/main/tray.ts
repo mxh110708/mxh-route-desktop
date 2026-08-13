@@ -13,7 +13,7 @@ import { daemonState } from "./state";
 import { destroyTrayMenuWindow, prepareTrayMenuWindow, showTrayMenu } from "./trayMenu";
 import { X11Tray } from "./x11Tray";
 
-const APPLICATION_LABEL = __CUSTOM_BUILD__ ? "sing-box Custom" : "sing-box";
+const APPLICATION_LABEL = __CUSTOM_BUILD__ ? "MXH Route" : "sing-box";
 
 let tray: Tray | null = null;
 let x11Tray: X11Tray | null = null;
