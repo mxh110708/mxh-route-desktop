@@ -28,6 +28,8 @@
     "icons": "tsx scripts/icons.ts",
     "dev": "tsx scripts/development.ts",
     "build": "electron-vite build",
+    "check:runtime-config": "tsx scripts/checkRuntimeConfig.ts",
+    "test:custom-isolation": "tsx --test scripts/customIsolation.test.ts",
     "package-dev:win": "tsx scripts/package.ts dev win",
     "package-dev:linux": "tsx scripts/package.ts dev linux",
     "package-dev:linux:deb": "tsx scripts/package.ts dev linux deb",
@@ -39,6 +41,7 @@
     "package:linux:rpm": "tsx scripts/package.ts linux rpm",
     "package:linux:pacman": "tsx scripts/package.ts linux pacman",
     "postinstall": "electron-builder install-app-deps",
+    "test:runtime-config": "tsx --test src/main/runtimeConfig.test.ts",
     "typecheck": "tsc -b"
   },
   "devDependencies": {
@@ -71,6 +74,7 @@
     "vite": "^7.3.6"
   },
   "dependencies": {
-    "dbus-next": "0.10.2"
+    "dbus-next": "0.10.2",
+    "jsonc-parser": "3.3.1"
   }
 }
