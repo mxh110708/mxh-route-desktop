@@ -45,6 +45,7 @@ export default defineConfig({
   main: {
     define: {
       __APP_VERSION__: JSON.stringify(readApplicationVersion()),
+      __CUSTOM_BUILD__: "true",
     },
   },
   preload: {

@@ -16,14 +16,17 @@ export function configureApplicationPaths(developmentUserDataPath: string): Appl
   if (configuredPaths !== null) {
     return configuredPaths;
   }
-  const defaultUserDataPath = join(app.getPath("appData"), "sing-box");
+  const defaultUserDataPath = join(
+    app.getPath("appData"),
+    __CUSTOM_BUILD__ ? "sing-box-custom" : "sing-box",
+  );
   let paths: ApplicationPaths;
   if (developmentUserDataPath !== "") {
     paths = {
       userData: developmentUserDataPath,
       daemonData:
         process.platform === "win32"
-          ? "C:\\ProgramData\\sing-box-daemon"
+          ? "C:\\ProgramData\\sing-box-custom-daemon"
           : "/var/lib/sing-box-daemon",
     };
   } else if (process.platform === "win32" && app.isPackaged) {
@@ -37,7 +40,7 @@ export function configureApplicationPaths(developmentUserDataPath: string): Appl
       userData: defaultUserDataPath,
       daemonData:
         process.platform === "win32"
-          ? "C:\\ProgramData\\sing-box-daemon"
+          ? "C:\\ProgramData\\sing-box-custom-daemon"
           : "/var/lib/sing-box-daemon",
     };
   }

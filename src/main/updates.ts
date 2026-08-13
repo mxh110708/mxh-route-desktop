@@ -34,7 +34,8 @@ const WINDOWS_UPDATE_ARCHITECTURES: Partial<Record<NodeJS.Architecture, string[]
   x64: ["x64"],
 };
 const updateArchitectureTokens = WINDOWS_UPDATE_ARCHITECTURES[process.arch];
-const UPDATES_SUPPORTED = process.platform === "win32" && updateArchitectureTokens !== undefined;
+const UPDATES_SUPPORTED =
+  !__CUSTOM_BUILD__ && process.platform === "win32" && updateArchitectureTokens !== undefined;
 const APP_IS_PRERELEASE = prerelease(__APP_VERSION__) !== null;
 
 function parseString(value: unknown): string {
