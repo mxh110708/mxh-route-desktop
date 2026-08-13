@@ -45,6 +45,9 @@ CI is intentionally test-only and receives no signing material. Windows
 installers are built locally with `scripts/build-custom-release.ps1`; the code
 signing certificate and password stay outside this repository. Never commit a
 proxy profile, VPS archive, credential, token, private key, or signing file.
+When dependency downloads require a local proxy, pass its URL through the
+script's optional `-Proxy` parameter; the value is process-local and is not
+stored in the repository.
 
 The custom release revision comes from `custom-version.json`, while the
 official base version remains in `version.json`. A prerelease such as
