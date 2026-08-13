@@ -27,6 +27,8 @@ const signingConfigurationPath = path.join(
 const developmentPackage = process.argv[2] === "dev";
 const packageModeArgumentIndex = developmentPackage ? 3 : 2;
 const packageMode = process.argv[packageModeArgumentIndex] ?? "win";
+const customWindowsPackage =
+  packageMode === "custom-win" || packageMode === "custom-win-architecture";
 const packageArguments = process.argv
   .slice(packageModeArgumentIndex + 1)
   .filter((argument) => argument !== "--");
@@ -263,7 +265,9 @@ async function runWindowsElectronBuilder(
   artifactArchitecture: string,
   signingConfiguration: WindowsSigningConfiguration,
 ): Promise<void> {
-  const artifactName = `SFW-\${version}-${artifactArchitecture}${developmentPackage ? "-dev" : ""}.\${ext}`;
+  const artifactName = customWindowsPackage
+    ? `sing-box-Custom-\${version}-windows-${artifactArchitecture}${developmentPackage ? "-dev" : ""}.\${ext}`
+    : `SFW-\${version}-${artifactArchitecture}${developmentPackage ? "-dev" : ""}.\${ext}`;
   const unpackedDirectory = {
     x64: "win-unpacked",
     x86: "win-ia32-unpacked",
@@ -274,7 +278,10 @@ async function runWindowsElectronBuilder(
       `unsupported Windows artifact architecture: ${artifactArchitecture}`,
     );
   }
-  fs.rmSync(path.join(repositoryRoot, "release", unpackedDirectory), {
+  const outputDirectory = customWindowsPackage
+    ? "release-custom-installer"
+    : "release";
+  fs.rmSync(path.join(repositoryRoot, outputDirectory, unpackedDirectory), {
     recursive: true,
     force: true,
   });
@@ -292,7 +299,12 @@ async function runWindowsElectronBuilder(
       publish: "never",
       config: {
         compression: developmentPackage ? "store" : undefined,
-        extends: path.join(repositoryRoot, "electron-builder.yml"),
+        extends: path.join(
+          repositoryRoot,
+          customWindowsPackage
+            ? "electron-builder.custom.yml"
+            : "electron-builder.yml",
+        ),
         extraMetadata: { version: readApplicationVersion() },
         npmRebuild: false,
         win: {
@@ -406,6 +418,12 @@ async function packageWindows() {
       requestedArchitectures.size === 0 ||
       requestedArchitectures.has(architecture.artifactArchitecture),
   );
+  if (
+    customWindowsPackage &&
+    (selectedArchitectures.length !== 1 || selectedArchitectures[0].artifactArchitecture !== "x64")
+  ) {
+    throw new Error("custom Windows packages currently support only x64");
+  }
   runChecked("electron-vite", ["build"]);
   console.info(
     `[package] building Windows daemons concurrently: ${selectedArchitectures.map((architecture) => architecture.artifactArchitecture).join(", ")}`,
@@ -486,7 +504,7 @@ async function packageWindows() {
         [
           "scripts/package.ts",
           ...(developmentPackage ? ["dev"] : []),
-          "win-architecture",
+          customWindowsPackage ? "custom-win-architecture" : "win-architecture",
           architecture.artifactArchitecture,
         ],
         buildEnvironment,
@@ -577,9 +595,11 @@ async function main(): Promise<void> {
   }
   switch (packageMode) {
     case "win":
+    case "custom-win":
       await packageWindows();
       break;
     case "win-architecture":
+    case "custom-win-architecture":
       await packageWindowsArchitecture(packageArguments[0] ?? "");
       break;
     case "linux":
