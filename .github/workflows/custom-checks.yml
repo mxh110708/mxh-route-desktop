@@ -23,6 +23,7 @@ jobs:
           $dashboardCommit = git ls-tree HEAD dashboard | ForEach-Object { ($_ -split '\s+')[2] }
           git clone https://github.com/mxh110708/mxh-route-dashboard.git dashboard
           git -C dashboard checkout $dashboardCommit
+          git -C dashboard submodule update --init --recursive
       - name: Initialize core source
         shell: pwsh
         run: |
