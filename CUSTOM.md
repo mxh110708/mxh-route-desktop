@@ -48,6 +48,9 @@ proxy profile, VPS archive, credential, token, private key, or signing file.
 When dependency downloads require a local proxy, pass its URL through the
 script's optional `-Proxy` parameter; the value is process-local and is not
 stored in the repository.
+The upstream-pinned Rust toolchain can likewise remain portable by passing its
+Cargo and rustup directories through `-CargoHome` and `-RustupHome`; neither
+directory is added to the machine-wide PATH.
 
 The custom release revision comes from `custom-version.json`, while the
 official base version remains in `version.json`. A prerelease such as
