@@ -191,11 +191,16 @@ FunctionEnd
     ShowInstDetails show
   !endif
 
-  LangString keepData ${LANG_ENGLISH} "&Keep data"
-  LangString keepData ${LANG_SIMPCHINESE} "保留数据"
-  LangString keepData ${LANG_TRADCHINESE} "保留資料"
-  LangString keepData ${LANG_FARSI} "&حفظ داده‌ها"
-  LangString keepData ${LANG_RUSSIAN} "&Сохранить данные"
+  LangString keepData ${LANG_ENGLISH} "&Keep application data for reinstall"
+  LangString keepData ${LANG_SIMPCHINESE} "保留应用数据（便于重装恢复）"
+  LangString keepData ${LANG_TRADCHINESE} "保留應用程式資料（便於重新安裝復原）"
+  LangString keepData ${LANG_FARSI} "&حفظ داده‌های برنامه برای نصب مجدد"
+  LangString keepData ${LANG_RUSSIAN} "&Сохранить данные приложения для переустановки"
+  LangString deleteData ${LANG_ENGLISH} "&Permanently delete all application data"
+  LangString deleteData ${LANG_SIMPCHINESE} "彻底删除应用数据"
+  LangString deleteData ${LANG_TRADCHINESE} "徹底刪除應用程式資料"
+  LangString deleteData ${LANG_FARSI} "&حذف دائمی همه داده‌های برنامه"
+  LangString deleteData ${LANG_RUSSIAN} "&Полностью удалить все данные приложения"
 
   LangString existingInstallationPageTitle ${LANG_ENGLISH} "Existing installation"
   LangString existingInstallationPageTitle ${LANG_SIMPCHINESE} "已有安装"
@@ -1596,10 +1601,19 @@ FunctionEnd
   ${endif}
   ${if} $applicationDataDirectory != ""
     DetailPrint "$(preparingApplicationDataDirectory)"
-    ${if} $allowUnsafeInstallation == 1
-      !insertmacro executeInstallationPreflight "-AllowUnsafeInstallationDirectory -PrepareApplicationDataDirectory"
+    ${if} $hasExistingInstallation == 0
+    ${andif} $hasInstallationLayout == 0
+      ${if} $allowUnsafeInstallation == 1
+        !insertmacro executeInstallationPreflight "-AllowUnsafeInstallationDirectory -PrepareApplicationDataDirectory -AdoptOrphanedApplicationDataDirectory"
+      ${else}
+        !insertmacro executeInstallationPreflight "-PrepareApplicationDataDirectory -AdoptOrphanedApplicationDataDirectory"
+      ${endif}
     ${else}
-      !insertmacro executeInstallationPreflight "-PrepareApplicationDataDirectory"
+      ${if} $allowUnsafeInstallation == 1
+        !insertmacro executeInstallationPreflight "-AllowUnsafeInstallationDirectory -PrepareApplicationDataDirectory"
+      ${else}
+        !insertmacro executeInstallationPreflight "-PrepareApplicationDataDirectory"
+      ${endif}
     ${endif}
     ${if} $1 != 0
       Call setInstallationValidationMessage
@@ -1777,21 +1791,31 @@ FunctionEnd
 
 !macro customUnWelcomePage
   Var keepUninstallData
-  Var keepUninstallDataCheckbox
+  Var keepUninstallDataRadio
+  Var deleteUninstallDataRadio
 
-  !define MUI_PAGE_CUSTOMFUNCTION_SHOW un.showKeepDataCheckbox
-  !define MUI_PAGE_CUSTOMFUNCTION_LEAVE un.readKeepDataCheckbox
+  !define MUI_PAGE_CUSTOMFUNCTION_SHOW un.showDataRemovalOptions
+  !define MUI_PAGE_CUSTOMFUNCTION_LEAVE un.readDataRemovalOptions
   !insertmacro MUI_UNPAGE_WELCOME
 
-  Function un.showKeepDataCheckbox
-    ${NSD_CreateCheckBox} 120u 175u 195u 12u "$(keepData)"
-    Pop $keepUninstallDataCheckbox
-    ${NSD_SetState} $keepUninstallDataCheckbox $keepUninstallData
-    SetCtlColors $keepUninstallDataCheckbox "${MUI_TEXTCOLOR}" "${MUI_BGCOLOR}"
+  Function un.showDataRemovalOptions
+    ${NSD_CreateRadioButton} 120u 160u 195u 12u "$(keepData)"
+    Pop $keepUninstallDataRadio
+    ${NSD_CreateRadioButton} 120u 175u 195u 12u "$(deleteData)"
+    Pop $deleteUninstallDataRadio
+    ${if} $keepUninstallData == ${BST_CHECKED}
+      ${NSD_SetState} $keepUninstallDataRadio ${BST_CHECKED}
+      ${NSD_SetState} $deleteUninstallDataRadio ${BST_UNCHECKED}
+    ${else}
+      ${NSD_SetState} $keepUninstallDataRadio ${BST_UNCHECKED}
+      ${NSD_SetState} $deleteUninstallDataRadio ${BST_CHECKED}
+    ${endif}
+    SetCtlColors $keepUninstallDataRadio "${MUI_TEXTCOLOR}" "${MUI_BGCOLOR}"
+    SetCtlColors $deleteUninstallDataRadio "${MUI_TEXTCOLOR}" "${MUI_BGCOLOR}"
   FunctionEnd
 
-  Function un.readKeepDataCheckbox
-    ${NSD_GetState} $keepUninstallDataCheckbox $keepUninstallData
+  Function un.readDataRemovalOptions
+    ${NSD_GetState} $keepUninstallDataRadio $keepUninstallData
   FunctionEnd
 !macroend
 
@@ -1848,4 +1872,23 @@ FunctionEnd
       !insertmacro restoreInstallerRegistryView
     ${endif}
   ${endIf}
+!macroend
+
+!macro customUnInstallSection
+  Section "-Preserve MXH Route application data layout"
+    ${ifNot} ${isUpdated}
+    ${andif} $keepUninstallData == ${BST_CHECKED}
+    ${andif} $installationID != ""
+      !insertmacro setInstallationLayoutRegistryView
+      WriteRegDWORD HKLM "${INSTALLATION_LAYOUT_REGISTRY_KEY}" "LayoutVersion" 2
+      WriteRegStr HKLM "${INSTALLATION_LAYOUT_REGISTRY_KEY}" "InstallationID" "$installationID"
+      ${if} $applicationDataDirectory == ""
+        DeleteRegValue HKLM "${INSTALLATION_LAYOUT_REGISTRY_KEY}" "ApplicationDataDirectory"
+      ${else}
+        WriteRegStr HKLM "${INSTALLATION_LAYOUT_REGISTRY_KEY}" "ApplicationDataDirectory" "$applicationDataDirectory"
+      ${endif}
+      WriteRegStr HKLM "${INSTALLATION_LAYOUT_REGISTRY_KEY}" "DaemonDataDirectory" "$daemonDataDirectory"
+      !insertmacro restoreInstallerRegistryView
+    ${endif}
+  SectionEnd
 !macroend

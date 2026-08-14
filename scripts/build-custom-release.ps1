@@ -84,6 +84,7 @@ try {
     Invoke-Pnpm test:update-source
     Invoke-Pnpm test:runtime-config
     Invoke-Pnpm test:custom-isolation
+    Invoke-Pnpm test:installer-preflight
     Invoke-Pnpm typecheck
     Invoke-Pnpm @("-C", "dashboard", "test", "--", "--run")
     Invoke-Pnpm @("-C", "dashboard", "lint")
