@@ -8,17 +8,22 @@ const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",
 );
-const applicationIconSource = path.join(
+const applicationIconSource = path.resolve(
   repositoryRoot,
+  "..",
+  "sing-box",
+  "docs",
   "assets",
-  "mxh-route-icon.svg",
+  "icon.svg",
 );
 const windowsSizes = [16, 24, 32, 48, 64, 128, 256];
 const windowsTraySizes = [16, 20, 24, 32, 48, 256];
 const linuxSizes = [512, 1024];
 
 if (!fs.existsSync(applicationIconSource)) {
-  throw new Error(`missing custom icon source: ${applicationIconSource}`);
+  throw new Error(
+    `missing official sing-box icon source: ${applicationIconSource}; keep the core checkout next to this repository`,
+  );
 }
 
 const source = fs.readFileSync(applicationIconSource, "utf8");

@@ -78,8 +78,8 @@ test("the custom package does not claim official profile associations or update 
   assert.match(versionScript, /\.mxh\.\$\{customMetadata\.revision\}/u);
 
   const iconScript = source("scripts/icons.ts");
-  assert.match(iconScript, /["']assets["'][\s\S]+["']mxh-route-icon\.svg["']/u);
-  assert.doesNotMatch(iconScript, /sing-box["', ]+docs["', ]+assets["', ]+icon\.svg/u);
+  assert.match(iconScript, /sing-box["', ]+[\s\S]+docs["', ]+[\s\S]+assets["', ]+[\s\S]+icon\.svg/u);
+  assert.doesNotMatch(iconScript, /mxh-route-icon\.svg/u);
 
   const dashboardApp = source("dashboard/src/App.tsx");
   const dashboardTray = source("dashboard/src/TrayMenu.tsx");
