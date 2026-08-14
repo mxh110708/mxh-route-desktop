@@ -27,12 +27,73 @@ if (!fs.existsSync(applicationIconSource)) {
 }
 
 const source = fs.readFileSync(applicationIconSource, "utf8");
+const pngSignature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+
+function centerViewBoxOnSquare(svg: string): string {
+  const match = /viewBox=(["'])([^"']+)\1/u.exec(svg);
+  if (match === null) {
+    throw new Error("official sing-box icon contains no SVG viewBox");
+  }
+  const values = match[2].trim().split(/[\s,]+/u).map(Number);
+  if (
+    values.length !== 4 ||
+    values.some((value) => !Number.isFinite(value)) ||
+    values[2] <= 0 ||
+    values[3] <= 0
+  ) {
+    throw new Error("official sing-box icon contains an invalid SVG viewBox");
+  }
+  const [minimumX, minimumY, width, height] = values;
+  const canvasSize = Math.max(width, height);
+  const squareViewBox = [
+    minimumX - (canvasSize - width) / 2,
+    minimumY - (canvasSize - height) / 2,
+    canvasSize,
+    canvasSize,
+  ].join(" ");
+  const squared = svg.replace(
+    match[0],
+    `viewBox=${match[1]}${squareViewBox}${match[1]}`,
+  );
+  const openingTag = /<svg\b[^>]*>/u.exec(squared);
+  const closingTagIndex = squared.lastIndexOf("</svg>");
+  if (
+    openingTag === null ||
+    closingTagIndex < openingTag.index + openingTag[0].length
+  ) {
+    throw new Error("official sing-box icon contains an invalid SVG root element");
+  }
+  const contentStart = openingTag.index + openingTag[0].length;
+  const clipIdentifier = "mxh-route-original-icon-viewport";
+  const clipDefinition =
+    `<defs><clipPath id="${clipIdentifier}" clipPathUnits="userSpaceOnUse">` +
+    `<rect x="${minimumX}" y="${minimumY}" width="${width}" height="${height}"/>` +
+    "</clipPath></defs>";
+  return (
+    squared.slice(0, contentStart) +
+    clipDefinition +
+    `<g clip-path="url(#${clipIdentifier})">` +
+    squared.slice(contentStart, closingTagIndex) +
+    "</g>" +
+    squared.slice(closingTagIndex)
+  );
+}
+
+const squareSource = centerViewBoxOnSquare(source);
 
 function renderIcon(size: number): Buffer {
-  const image = new Resvg(source, {
+  const image = new Resvg(squareSource, {
     fitTo: { mode: "width", value: size },
   }).render();
-  return Buffer.from(image.asPng());
+  const png = Buffer.from(image.asPng());
+  if (
+    !png.subarray(0, pngSignature.length).equals(pngSignature) ||
+    png.readUInt32BE(16) !== size ||
+    png.readUInt32BE(20) !== size
+  ) {
+    throw new Error(`generated icon frame is not ${size}x${size}`);
+  }
+  return png;
 }
 
 function writePng(size: number, outputPath: string): void {

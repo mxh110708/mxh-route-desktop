@@ -86,9 +86,9 @@ try {
     Invoke-Pnpm test:custom-isolation
     Invoke-Pnpm test:installer-preflight
     Invoke-Pnpm typecheck
-    Invoke-Pnpm @("-C", "dashboard", "test", "--", "--run")
-    Invoke-Pnpm @("-C", "dashboard", "lint")
-    Invoke-Pnpm @("-C", "dashboard", "lint:css")
+    Invoke-Pnpm -Arguments @("-C", "dashboard", "test", "--", "--run")
+    Invoke-Pnpm -Arguments @("-C", "dashboard", "lint")
+    Invoke-Pnpm -Arguments @("-C", "dashboard", "lint:css")
     Invoke-Pnpm package:custom:win
 } finally {
     Pop-Location
