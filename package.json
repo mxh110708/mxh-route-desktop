@@ -43,6 +43,7 @@
     "postinstall": "electron-builder install-app-deps",
     "test:runtime-config": "tsx --test src/main/runtimeConfig.test.ts",
     "test:update-source": "tsx --test src/main/updateSource.test.ts",
+    "test:installer-preflight": "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/test-installer-preflight.ps1",
     "typecheck": "tsc -b"
   },
   "devDependencies": {
