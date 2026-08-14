@@ -10,6 +10,7 @@ param(
     [Alias("RepairInstallationAncestors")][switch]$RepairPathAncestors,
     [switch]$ResetWorkingDirectory,
     [switch]$PrepareApplicationDataDirectory,
+    [switch]$AdoptOrphanedApplicationDataDirectory,
     [switch]$DeleteDataDirectories
 )
 
@@ -575,24 +576,53 @@ function Set-ApplicationDataDirectoryAccessControl([string]$Path) {
     Set-Acl -LiteralPath $Path -AclObject $accessControl
 }
 
-function Initialize-ApplicationDataDirectory([string]$Path, [string]$ID) {
+function Test-InstallationID([string]$ID) {
+    if ([string]::IsNullOrWhiteSpace($ID)) {
+        return $false
+    }
+    $parsedID = [Guid]::Empty
+    return [Guid]::TryParse($ID, [ref]$parsedID)
+}
+
+function Get-ApplicationDataDirectoryInitializationAction(
+    [string]$Path,
+    [string]$ID,
+    [bool]$AllowOrphanedRecovery
+) {
     if ([string]::IsNullOrWhiteSpace($ID)) {
         throw "The installation ID is missing."
     }
-    if (Test-Path -LiteralPath $Path) {
-        $item = Get-Item -LiteralPath $Path -Force
-        if (-not $item.PSIsContainer -or ($item.Attributes -band $reparsePoint)) {
-            throw "The application data directory is invalid."
-        }
-        $existingID = [Box.Installer.DirectoryAccessControl]::ReadDirectoryMarker($Path)
-        if ($existingID -eq $ID) {
-            return
-        }
-        $existingEntry = Get-ChildItem -LiteralPath $Path -Force | Select-Object -First 1
-        if ($null -ne $existingEntry) {
-            throw "The application data directory must be empty."
-        }
-    } else {
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return "Initialize"
+    }
+    $item = Get-Item -LiteralPath $Path -Force
+    if (-not $item.PSIsContainer -or ($item.Attributes -band $reparsePoint)) {
+        throw "The application data directory is invalid."
+    }
+    $existingID = [Box.Installer.DirectoryAccessControl]::ReadDirectoryMarker($Path)
+    if ($existingID -eq $ID) {
+        return "Reuse"
+    }
+    $existingEntry = Get-ChildItem -LiteralPath $Path -Force | Select-Object -First 1
+    if ($null -eq $existingEntry) {
+        return "Initialize"
+    }
+    if ($AllowOrphanedRecovery -and (Test-InstallationID $existingID)) {
+        return "Adopt"
+    }
+    throw "The application data directory must be empty."
+}
+
+function Initialize-ApplicationDataDirectory(
+    [string]$Path,
+    [string]$ID,
+    [bool]$AllowOrphanedRecovery
+) {
+    $action = Get-ApplicationDataDirectoryInitializationAction `
+        $Path `
+        $ID `
+        $AllowOrphanedRecovery
+    if ($action -eq "Initialize" -and -not (Test-Path -LiteralPath $Path)) {
         [void][System.IO.Directory]::CreateDirectory($Path)
     }
     Set-ApplicationDataDirectoryAccessControl $Path
@@ -797,7 +827,10 @@ try {
     if ($PrepareApplicationDataDirectory -and
         -not [string]::IsNullOrWhiteSpace($ApplicationDataDirectory)) {
         try {
-            Initialize-ApplicationDataDirectory $ApplicationDataDirectory $InstallationID
+            Initialize-ApplicationDataDirectory `
+                $ApplicationDataDirectory `
+                $InstallationID `
+                $AdoptOrphanedApplicationDataDirectory
         } catch {
             Write-InstallerOutput $_.Exception.Message
             Exit-Installer 25

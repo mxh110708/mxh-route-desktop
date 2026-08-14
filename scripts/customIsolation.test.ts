@@ -39,6 +39,27 @@ test("the custom installer cannot target the official service or data directorie
   assert.doesNotMatch(migration, /Join-Path \$commonApplicationData "sing-box-installer"/u);
 });
 
+test("orphaned application data recovery remains narrowly gated", () => {
+  const installer = source("build/installer.nsh");
+  const preflight = source("build/installer-preflight.ps1");
+
+  assert.match(preflight, /\[Guid\]::TryParse\(\$ID, \[ref\]\$parsedID\)/u);
+  assert.match(
+    preflight,
+    /\$AllowOrphanedRecovery -and \(Test-InstallationID \$existingID\)/u,
+  );
+  assert.match(
+    installer,
+    /\$hasExistingInstallation == 0[\s\S]+\$hasInstallationLayout == 0[\s\S]+-AdoptOrphanedApplicationDataDirectory/u,
+  );
+  assert.match(
+    installer,
+    /!macro customUnInstallSection[\s\S]+Section "-Preserve MXH Route application data layout"[\s\S]+\$keepUninstallData == \$\{BST_CHECKED\}[\s\S]+WriteRegStr HKLM "\$\{INSTALLATION_LAYOUT_REGISTRY_KEY\}" "InstallationID"[\s\S]+SectionEnd/u,
+  );
+  assert.match(installer, /\$\(keepData\)[\s\S]+\$\(deleteData\)/u);
+  assert.match(installer, /NSD_CreateRadioButton[\s\S]+NSD_CreateRadioButton/u);
+});
+
 test("the custom package does not claim official profile associations or update channel", () => {
   const builder = source("electron-builder.custom.yml");
   const index = source("src/main/index.ts");
