@@ -11,6 +11,11 @@ The Windows installation is deliberately parallel to the official desktop
 client. It uses a separate application identity, service, registry key, pipe,
 and data directories.
 
+Application artwork is generated from the icon shipped in the adjacent
+official sing-box core checkout. The product name, application identity, and
+update channel remain MXH Route, and this is still an unofficial personal
+distribution.
+
 ## Upstream maintenance
 
 The maintained branch is `custom-main`. The official repositories are kept as
