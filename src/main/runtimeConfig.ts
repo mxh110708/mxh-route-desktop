@@ -6,6 +6,11 @@ import {
 
 export type CaptureMode = "system-proxy" | "tun";
 
+export interface SystemProxyEndpoint {
+  server: string;
+  port: number;
+}
+
 type JsonObject = Record<string, unknown>;
 
 const CONTROL_ACTIONS = new Set(["sniff", "resolve", "hijack-dns"]);
@@ -64,7 +69,7 @@ function directOutboundTag(outbounds: JsonObject[]): string | null {
 
 function globalOutboundTag(outbounds: JsonObject[]): string | null {
   return (
-    outboundTag(outbounds, ["Final Exit", "Proxy", "GLOBAL"]) ??
+    outboundTag(outbounds, ["Default Exit", "Final Exit", "Proxy", "GLOBAL"]) ??
     (outbounds.find((outbound) => outbound.type === "selector")?.tag as string | undefined) ??
     null
   );
@@ -177,6 +182,16 @@ function systemProxyAddress(mixed: JsonObject): { server: string; server_port: n
       break;
   }
   return { server, server_port: port };
+}
+
+export function readSystemProxyEndpoint(content: string): SystemProxyEndpoint {
+  const config = parseConfig(content);
+  const mixed = objectArray(config.inbounds).find((inbound) => inbound.type === "mixed");
+  if (mixed === undefined) {
+    throw new Error("system proxy mode requires a mixed inbound");
+  }
+  const address = systemProxyAddress(mixed);
+  return { server: address.server, port: address.server_port };
 }
 
 function configureCaptureMode(config: JsonObject, mode: CaptureMode): void {

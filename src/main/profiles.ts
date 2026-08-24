@@ -1,6 +1,14 @@
 import { ConnectError } from "@connectrpc/connect";
 import { BrowserWindow, app, dialog, ipcMain } from "electron";
-import { copyFile, mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
+import {
+  appendFile,
+  copyFile,
+  mkdir,
+  readFile,
+  rename,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import { basename, join } from "node:path";
 
 import { ServiceStatus_Type } from "../shared/gen/daemon/started_service_pb";
@@ -15,23 +23,34 @@ import type {
   ProfilesState,
 } from "../shared/ipc";
 import { writeApplicationCacheFile } from "./appCache";
-import { desktopService, managedService } from "./daemon";
+import { desktopService, managedService, startedService } from "./daemon";
 import { Preference, settingsDatabase } from "./database";
 import {
   buildRuntimeConfig,
   parseCaptureMode,
+  readSystemProxyEndpoint,
   type CaptureMode,
 } from "./runtimeConfig";
 import { serviceStartOptions } from "./settings";
 import { userAgent } from "./userAgent";
 import { applicationService } from "./worker";
 import { daemonState } from "./state";
+import {
+  ConsecutiveFailureRecovery,
+  nextSystemProxyProbeDelay,
+  probeSystemProxy,
+} from "./systemProxyRecovery";
 
 const MINIMUM_UPDATE_INTERVAL_MINUTES = 15;
 const DEFAULT_UPDATE_INTERVAL_MINUTES = 60;
 const REMOTE_REQUEST_TIMEOUT_MILLISECONDS = 30_000;
 const MAXIMUM_REMOTE_PROFILE_BYTES = 16 * 1024 * 1024;
 const MAXIMUM_REMOTE_ERROR_BYTES = 64 * 1024;
+const SYSTEM_PROXY_HEALTH_NORMAL_INTERVAL_MILLISECONDS = 60_000;
+const SYSTEM_PROXY_HEALTH_RETRY_INTERVAL_MILLISECONDS = 5_000;
+const SYSTEM_PROXY_HEALTH_TIMEOUT_MILLISECONDS = 8_000;
+const SYSTEM_PROXY_CONTROL_TIMEOUT_MILLISECONDS = 3_000;
+const SYSTEM_PROXY_RECOVERY_THRESHOLD = 3;
 
 interface ProfileRow {
   id: string;
@@ -345,6 +364,11 @@ async function encodeProfileData(id: string): Promise<Uint8Array> {
 }
 
 let serviceOperation: Promise<void> = Promise.resolve();
+const systemProxyRecovery = new ConsecutiveFailureRecovery(
+  SYSTEM_PROXY_RECOVERY_THRESHOLD,
+);
+let systemProxyHealthTimer: NodeJS.Timeout | null = null;
+let systemProxyHealthCheckRunning = false;
 
 function runServiceOperation<Result>(operation: () => Promise<Result>): Promise<Result> {
   const result = serviceOperation.catch(() => {}).then(operation);
@@ -368,6 +392,116 @@ async function startServiceWithContent(
     options: await serviceStartOptions(),
   });
   await managedService.setSystemProxyEnabled({ enabled: captureMode === "system-proxy" });
+}
+
+function systemProxyHealthError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.replace(/[\r\n]+/gu, " ").slice(0, 512);
+}
+
+function recordSystemProxyHealth(
+  event: string,
+  details: Record<string, unknown> = {},
+): void {
+  const line = `${JSON.stringify({ timestamp: new Date().toISOString(), event, ...details })}\n`;
+  void appendFile(join(app.getPath("userData"), "system-proxy-health.log"), line).catch(
+    (error) => console.error("write system proxy health log:", error),
+  );
+}
+
+async function runSystemProxyHealthCheck(): Promise<number> {
+  if (systemProxyHealthCheckRunning) {
+    return SYSTEM_PROXY_HEALTH_NORMAL_INTERVAL_MILLISECONDS;
+  }
+  systemProxyHealthCheckRunning = true;
+  try {
+    if (
+      captureModePreference.get() !== "system-proxy" ||
+      daemonState.status !== ServiceStatus_Type.STARTED
+    ) {
+      systemProxyRecovery.reset();
+      return SYSTEM_PROXY_HEALTH_NORMAL_INTERVAL_MILLISECONDS;
+    }
+    const selectedId = selectedProfileId();
+    if (selectedId === null) {
+      systemProxyRecovery.reset();
+      return SYSTEM_PROXY_HEALTH_NORMAL_INTERVAL_MILLISECONDS;
+    }
+    if (startedService !== null) {
+      const clashMode = await startedService.getClashModeStatus(
+        {},
+        { timeoutMs: SYSTEM_PROXY_CONTROL_TIMEOUT_MILLISECONDS },
+      );
+      if (clashMode.currentMode.toLowerCase() === "direct") {
+        systemProxyRecovery.reset();
+        return SYSTEM_PROXY_HEALTH_NORMAL_INTERVAL_MILLISECONDS;
+      }
+    }
+    const content = await readFile(contentPath(selectedId), "utf-8");
+    const endpoint = readSystemProxyEndpoint(content);
+    try {
+      await probeSystemProxy(endpoint, {
+        timeoutMs: SYSTEM_PROXY_HEALTH_TIMEOUT_MILLISECONDS,
+      });
+      const recovered =
+        systemProxyRecovery.consecutiveFailures > 0 ||
+        !systemProxyRecovery.recoveryArmed;
+      systemProxyRecovery.recordSuccess();
+      if (recovered) {
+        recordSystemProxyHealth("healthy");
+      }
+      return SYSTEM_PROXY_HEALTH_NORMAL_INTERVAL_MILLISECONDS;
+    } catch (error) {
+      const wasArmed = systemProxyRecovery.recoveryArmed;
+      const shouldRecover = systemProxyRecovery.recordFailure();
+      if (wasArmed) {
+        recordSystemProxyHealth("probe-failed", {
+          failures: systemProxyRecovery.consecutiveFailures,
+          error: systemProxyHealthError(error),
+        });
+      }
+      if (!shouldRecover) {
+        return nextSystemProxyProbeDelay(
+          systemProxyRecovery,
+          SYSTEM_PROXY_HEALTH_NORMAL_INTERVAL_MILLISECONDS,
+          SYSTEM_PROXY_HEALTH_RETRY_INTERVAL_MILLISECONDS,
+        );
+      }
+    }
+
+    recordSystemProxyHealth("automatic-reload-started");
+    try {
+      await runServiceOperation(() => startServiceWithContent(content, "system-proxy"));
+      recordSystemProxyHealth("automatic-reload-completed");
+    } catch (error) {
+      recordSystemProxyHealth("automatic-reload-failed", {
+        error: systemProxyHealthError(error),
+      });
+    }
+    return SYSTEM_PROXY_HEALTH_RETRY_INTERVAL_MILLISECONDS;
+  } catch (error) {
+    recordSystemProxyHealth("health-check-failed", {
+      error: systemProxyHealthError(error),
+    });
+    return SYSTEM_PROXY_HEALTH_NORMAL_INTERVAL_MILLISECONDS;
+  } finally {
+    systemProxyHealthCheckRunning = false;
+  }
+}
+
+function scheduleSystemProxyHealthCheck(delayMs: number): void {
+  if (systemProxyHealthTimer !== null) {
+    return;
+  }
+  systemProxyHealthTimer = setTimeout(() => {
+    systemProxyHealthTimer = null;
+    void runSystemProxyHealthCheck().then(scheduleSystemProxyHealthCheck);
+  }, delayMs);
+  systemProxyHealthTimer.unref();
+}
+
+function startSystemProxyHealthMonitor(): void {
+  scheduleSystemProxyHealthCheck(SYSTEM_PROXY_HEALTH_NORMAL_INTERVAL_MILLISECONDS);
 }
 
 async function reloadIfSelectedAndRunning(id: string): Promise<void> {
@@ -780,4 +914,5 @@ export function registerProfiles() {
     },
   );
   reconfigureAutoUpdate();
+  startSystemProxyHealthMonitor();
 }

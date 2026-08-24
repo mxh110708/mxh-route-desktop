@@ -17,6 +17,13 @@ default. A fresh installer can recover a non-empty data directory only when it
 has a valid MXH Route installation marker; unmarked, malformed, or unsafe
 directories remain blocked.
 
+System Proxy mode has a conservative recovery monitor for Rule and Global
+routing. A healthy CONNECT path is checked once per minute. A failed check is
+confirmed every five seconds, and only three consecutive failures trigger one
+serialized profile reload. Direct mode and stopped services are not probed.
+State changes and recovery errors are written to `system-proxy-health.log` in
+the MXH Route user-data directory; successful steady-state checks are silent.
+
 Application artwork is generated from the icon shipped in the adjacent
 official sing-box core checkout. The product name, application identity, and
 update channel remain MXH Route, and this is still an unofficial personal
@@ -62,6 +69,9 @@ stored in the repository.
 The upstream-pinned Rust toolchain can likewise remain portable by passing its
 Cargo and rustup directories through `-CargoHome` and `-RustupHome`; neither
 directory is added to the machine-wide PATH.
+An already-downloaded Electron archive can be supplied with `-ElectronDist` to
+avoid a network download during packaging. The path is process-local and is
+not persisted in the repository or the user's environment.
 
 The custom release revision comes from `custom-version.json`, while the
 official base version remains in `version.json`. A prerelease such as

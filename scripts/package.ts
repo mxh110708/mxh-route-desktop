@@ -337,6 +337,7 @@ async function runWindowsElectronBuilder(
             : "electron-builder.yml",
         ),
         extraMetadata: { version: readApplicationVersion() },
+        electronDist: process.env.SING_BOX_ELECTRON_DIST || undefined,
         npmRebuild: false,
         win: {
           artifactName,
