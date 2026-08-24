@@ -8,6 +8,8 @@ The maintained personal changes add:
 
 - Rule, Global, and Direct routing controls on Overview.
 - System Proxy and TUN traffic-capture controls on Overview.
+- Adaptive System Proxy recovery that checks the actual CONNECT path, confirms
+  consecutive failures, and reloads the selected profile without busy polling.
 - A parallel Windows installation that does not take over the official
   desktop client's service, registry key, IPC pipe, or data directories.
 - A public personal Release channel with exact asset-name, repository-path,

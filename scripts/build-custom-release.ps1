@@ -8,6 +8,7 @@ param(
     [string]$PnpmScript,
     [string]$CargoHome,
     [string]$RustupHome,
+    [string]$ElectronDist,
     [string]$Proxy
 )
 
@@ -34,6 +35,9 @@ if ($PnpmScript) {
 } elseif (-not (Get-Command "pnpm" -ErrorAction SilentlyContinue)) {
     throw "pnpm is missing. Pass -PnpmScript or install pnpm."
 }
+if ($ElectronDist -and -not (Test-Path -LiteralPath $ElectronDist -PathType Leaf)) {
+    throw "The requested local Electron distribution is missing."
+}
 
 $resolvedNode = (Get-Command $NodeExecutable -ErrorAction Stop).Source
 $resolvedGo = (Get-Command $GoExecutable -ErrorAction Stop).Source
@@ -44,6 +48,7 @@ $previousHTTPSProxy = $env:HTTPS_PROXY
 $previousNoProxy = $env:NO_PROXY
 $previousCargoHome = $env:CARGO_HOME
 $previousRustupHome = $env:RUSTUP_HOME
+$previousElectronDist = $env:SING_BOX_ELECTRON_DIST
 $env:npm_config_manage_package_manager_versions = "false"
 if ($CargoHome -or $RustupHome) {
     if (-not $CargoHome -or -not $RustupHome) {
@@ -64,6 +69,9 @@ if ($Proxy) {
     $env:HTTPS_PROXY = $Proxy
     $env:NO_PROXY = "127.0.0.1,localhost"
 }
+if ($ElectronDist) {
+    $env:SING_BOX_ELECTRON_DIST = (Resolve-Path -LiteralPath $ElectronDist).Path
+}
 $env:SING_BOX_CUSTOM_CERTIFICATE_FILE = $CertificateFile
 $env:SING_BOX_CUSTOM_CERTIFICATE_PASSWORD_FILE = $CertificatePasswordFile
 
@@ -83,6 +91,7 @@ Push-Location $repositoryRoot
 try {
     Invoke-Pnpm test:update-source
     Invoke-Pnpm test:runtime-config
+    Invoke-Pnpm test:system-proxy-recovery
     Invoke-Pnpm test:custom-isolation
     Invoke-Pnpm test:installer-preflight
     Invoke-Pnpm typecheck
@@ -100,4 +109,5 @@ try {
     $env:NO_PROXY = $previousNoProxy
     $env:CARGO_HOME = $previousCargoHome
     $env:RUSTUP_HOME = $previousRustupHome
+    $env:SING_BOX_ELECTRON_DIST = $previousElectronDist
 }
