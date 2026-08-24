@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildRuntimeConfig, parseCaptureMode } from "./runtimeConfig";
+import {
+  buildRuntimeConfig,
+  parseCaptureMode,
+  readSystemProxyEndpoint,
+} from "./runtimeConfig";
 
 function sample(overrides: Record<string, unknown> = {}): string {
   return JSON.stringify({
@@ -50,6 +54,23 @@ test("system proxy mode keeps official control rules first and disables TUN rout
   assert.equal(config.dns.rules[1].clash_mode, "Direct");
   assert.equal(config.dns.servers.at(-1).type, "local");
   assert.equal(config.route.default_domain_resolver, config.dns.servers.at(-1).tag);
+});
+
+test("Default Exit is preferred for the injected global mode", () => {
+  const source = JSON.parse(sample());
+  source.outbounds.unshift({ type: "selector", tag: "Default Exit", outbounds: ["DIRECT"] });
+  const config = JSON.parse(buildRuntimeConfig(JSON.stringify(source), "system-proxy"));
+  const globalRule = config.route.rules.find(
+    (rule: Record<string, unknown>) => rule.clash_mode === "Global",
+  );
+  assert.equal(globalRule.outbound, "Default Exit");
+});
+
+test("system proxy endpoint is read from the mixed inbound", () => {
+  assert.deepEqual(readSystemProxyEndpoint(sample()), {
+    server: "127.0.0.1",
+    port: 2080,
+  });
 });
 
 test("TUN mode removes platform HTTP proxy while preserving other platform options", () => {

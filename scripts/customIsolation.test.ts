@@ -92,6 +92,7 @@ test("the custom package does not claim official profile associations or update 
   assert.match(packageScript, /runPnpm\(\["icons"\]\)/u);
   assert.match(packageScript, /SING_BOX_CUSTOM_CERTIFICATE_FILE/u);
   assert.match(packageScript, /SING_BOX_CUSTOM_CERTIFICATE_PASSWORD_FILE/u);
+  assert.match(packageScript, /SING_BOX_ELECTRON_DIST/u);
   assert.match(updates, /unsafe update installation fallback is disabled for custom builds/u);
 
   const versionScript = source("scripts/version.ts");
@@ -129,4 +130,11 @@ test("desktop and daemon identities are parallel to the official installation", 
   assert.match(daemonPeer, /applicationExecutableName\s+= "MXH Route\.exe"/u);
   assert.match(daemonPeer, /workerPipePrefix\s+= `\\\\\.\\pipe\\mxh-route-worker\.`/u);
   assert.match(daemonUpdate, /updateProductName\s+= "MXH Route"/u);
+});
+
+test("the custom daemon exposes single-item selector groups", () => {
+  const startedService = coreSource("daemon/started_service.go");
+  assert.match(startedService, /if !shouldDisplayGroup\(g\.Items\) \{/u);
+  assert.match(startedService, /return len\(items\) != 0/u);
+  assert.doesNotMatch(startedService, /if len\(g\.Items\) < 2 \{/u);
 });
