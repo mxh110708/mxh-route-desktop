@@ -6,6 +6,14 @@ node_modules/
 /dist/
 /out/
 /release/
+/release-custom/
+/release-custom-installer/
 /signing.local.json
+/*.pfx
+/*.p12
+/*.pem
+/*.key
+/.env
+/.env.*
 /CLAUDE.md
 /.claude/

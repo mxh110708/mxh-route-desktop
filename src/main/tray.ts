@@ -14,6 +14,7 @@ import { destroyTrayMenuWindow, hideTrayMenu, prepareTrayMenuWindow, showTrayMen
 import { X11Tray } from "./x11Tray";
 
 const DOUBLE_ACTIVATE_INTERVAL_MILLISECONDS = 500;
+const APPLICATION_LABEL = __CUSTOM_BUILD__ ? "sing-box Custom" : "sing-box";
 
 let tray: Tray | null = null;
 let x11Tray: X11Tray | null = null;
@@ -108,7 +109,7 @@ function groupsSubmenu(): MenuItemConstructorOptions[] {
 function buildTrayTemplate(): MenuItemConstructorOptions[] {
   const started = daemonState.status === ServiceStatus_Type.STARTED;
   const { selectedId, profiles } = profilesState();
-  const template: MenuItemConstructorOptions[] = [{ label: "sing-box", enabled: false }];
+  const template: MenuItemConstructorOptions[] = [{ label: APPLICATION_LABEL, enabled: false }];
   if (started) {
     template.push({
       label: translate("Stop"),
@@ -177,7 +178,7 @@ function createElectronTray() {
     );
   }
   tray = new Tray(icon);
-  tray.setToolTip("sing-box");
+  tray.setToolTip(APPLICATION_LABEL);
   if (process.platform === "win32") {
     prepareTrayMenuWindow(tray.getBounds());
     const popMenu = (bounds: Rectangle) => {
