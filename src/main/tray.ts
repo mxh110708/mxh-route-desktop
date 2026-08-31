@@ -14,7 +14,7 @@ import { destroyTrayMenuWindow, hideTrayMenu, prepareTrayMenuWindow, showTrayMen
 import { X11Tray } from "./x11Tray";
 
 const DOUBLE_ACTIVATE_INTERVAL_MILLISECONDS = 500;
-const APPLICATION_LABEL = __CUSTOM_BUILD__ ? "sing-box Custom" : "sing-box";
+const APPLICATION_LABEL = __CUSTOM_BUILD__ ? "MXH Route" : "sing-box";
 
 let tray: Tray | null = null;
 let x11Tray: X11Tray | null = null;
