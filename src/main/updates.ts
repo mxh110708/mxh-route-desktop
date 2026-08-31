@@ -21,22 +21,27 @@ import type {
 import { applicationCacheDirectory } from "./appCache";
 import { parseBooleanPreference, Preference } from "./database";
 import { desktopService } from "./daemon";
+import {
+  isChannelVersion,
+  isTrustedDownloadURL,
+  releasesURL,
+  selectWindowsAsset,
+  updatesSupported,
+  type UpdateAsset,
+} from "./updateSource";
 import { userAgent } from "./userAgent";
 
-const RELEASES_URL = "https://api.github.com/repos/SagerNet/sing-box/releases";
+const RELEASES_URL = releasesURL(__CUSTOM_BUILD__);
 const RELEASES_PER_PAGE = 100;
 const RELEASES_REQUEST_TIMEOUT_MILLISECONDS = 30_000;
 const EXIT_CODE_CANCELLED = 1223;
 const EXIT_CODE_LAUNCH_FAILED = 1224;
 
-const WINDOWS_UPDATE_ARCHITECTURES: Partial<Record<NodeJS.Architecture, string[]>> = {
-  arm64: ["arm64", "x64", "x86"],
-  ia32: ["x86"],
-  x64: ["x64"],
-};
-const updateArchitectureTokens = WINDOWS_UPDATE_ARCHITECTURES[process.arch];
-const UPDATES_SUPPORTED =
-  !__CUSTOM_BUILD__ && process.platform === "win32" && updateArchitectureTokens !== undefined;
+const UPDATES_SUPPORTED = updatesSupported(
+  __CUSTOM_BUILD__,
+  process.platform,
+  process.arch,
+);
 const APP_IS_PRERELEASE = prerelease(__APP_VERSION__) !== null;
 
 function parseString(value: unknown): string {
@@ -82,6 +87,9 @@ const stableTrackAvailablePreference = new Preference(
 const githubTokenPreference = new Preference("github_token", "", parseString);
 
 function currentTrack(): UpdateTrack {
+  if (__CUSTOM_BUILD__) {
+    return "beta";
+  }
   if (!stableTrackAvailablePreference.get()) {
     return "beta";
   }
@@ -99,6 +107,7 @@ const runtime = {
 function updatesState(): UpdatesState {
   return {
     supported: UPDATES_SUPPORTED,
+    githubTokenSupported: !__CUSTOM_BUILD__,
     track: currentTrack(),
     stableTrackAvailable: stableTrackAvailablePreference.get(),
     checkUpdateEnabled: checkUpdateEnabledPreference.get(),
@@ -122,7 +131,7 @@ function broadcastState(): void {
 
 function shouldIncludeVersion(version: string, track: UpdateTrack): boolean {
   const normalizedVersion = valid(version);
-  if (normalizedVersion === null) {
+  if (normalizedVersion === null || !isChannelVersion(__CUSTOM_BUILD__, normalizedVersion)) {
     return false;
   }
   return gt(normalizedVersion, __APP_VERSION__) || (track === "stable" && APP_IS_PRERELEASE);
@@ -156,7 +165,8 @@ function parseCachedUpdateInfo(cached: string): AppUpdateInfo | null {
     typeof candidate.downloadURL !== "string" ||
     typeof candidate.releaseNotes !== "string" ||
     typeof candidate.isPrerelease !== "boolean" ||
-    typeof candidate.fileSize !== "number"
+    typeof candidate.fileSize !== "number" ||
+    !isTrustedDownloadURL(__CUSTOM_BUILD__, candidate.downloadURL)
   ) {
     return null;
   }
@@ -189,11 +199,7 @@ function loadCachedUpdate(): boolean {
   return lastShownUpdateVersionPreference.get() !== info.versionName;
 }
 
-interface GitHubAsset {
-  name: string;
-  browser_download_url: string;
-  size: number;
-}
+type GitHubAsset = UpdateAsset;
 
 interface GitHubRelease {
   tag_name: string;
@@ -210,7 +216,7 @@ async function fetchReleases(track: UpdateTrack, githubToken: string): Promise<G
     "Accept": "application/vnd.github+json",
     "User-Agent": userAgent(),
   });
-  const token = githubToken.trim();
+  const token = __CUSTOM_BUILD__ ? "" : githubToken.trim();
   if (token !== "") {
     headers.set("Authorization", `token ${token}`);
   }
@@ -235,20 +241,8 @@ async function fetchReleases(track: UpdateTrack, githubToken: string): Promise<G
   }
 }
 
-function findWindowsAsset(assets: GitHubAsset[]): GitHubAsset | null {
-  if (updateArchitectureTokens === undefined) {
-    throw new Error(`unsupported Windows architecture: ${process.arch}`);
-  }
-  const executables = assets.filter(
-    (asset) => asset.name.startsWith("SFW-") && asset.name.endsWith(".exe"),
-  );
-  for (const token of updateArchitectureTokens) {
-    const match = executables.find((asset) => asset.name.endsWith(`-${token}.exe`));
-    if (match !== undefined) {
-      return match;
-    }
-  }
-  return null;
+function findWindowsAsset(version: string, assets: GitHubAsset[]): GitHubAsset | null {
+  return selectWindowsAsset(__CUSTOM_BUILD__, process.arch, version, assets);
 }
 
 async function checkForUpdate(): Promise<AppUpdateInfo | null> {
@@ -271,20 +265,20 @@ async function checkForUpdate(): Promise<AppUpdateInfo | null> {
       if (release.draft) {
         continue;
       }
-      const asset = findWindowsAsset(release.assets);
-      if (asset === null) {
-        continue;
-      }
-      if (!release.prerelease && !stableTrackAvailablePreference.get()) {
-        stableTrackAvailablePreference.set(true);
-      }
-      if (track === "stable" && release.prerelease) {
-        continue;
-      }
       const version = release.tag_name.startsWith("v")
         ? release.tag_name.slice(1)
         : release.tag_name;
       if (!shouldIncludeVersion(version, track)) {
+        continue;
+      }
+      const asset = findWindowsAsset(version, release.assets);
+      if (asset === null) {
+        continue;
+      }
+      if (!__CUSTOM_BUILD__ && !release.prerelease && !stableTrackAvailablePreference.get()) {
+        stableTrackAvailablePreference.set(true);
+      }
+      if (track === "stable" && release.prerelease) {
         continue;
       }
       if (best !== null && compare(version, best.versionName) <= 0) {
@@ -316,6 +310,9 @@ function reportDownloadProgress(progress: number): void {
 }
 
 async function downloadUpdate(info: AppUpdateInfo): Promise<string> {
+  if (!isTrustedDownloadURL(__CUSTOM_BUILD__, info.downloadURL)) {
+    throw new Error("untrusted update download URL");
+  }
   const directory = join(applicationCacheDirectory(), "updates");
   await mkdir(directory, { recursive: true });
   const fileName = basename(new URL(info.downloadURL).pathname);
@@ -448,9 +445,15 @@ async function downloadAndInstall(): Promise<UpdateInstallResult> {
         app.quit();
         return "started";
       case InstallUpdateResult.SIGNER_MISMATCH:
+        if (__CUSTOM_BUILD__) {
+          throw new Error("custom update signer does not match the installed application");
+        }
         resetInstallationState();
         return "signer-mismatch";
       case InstallUpdateResult.NOT_NEWER:
+        if (__CUSTOM_BUILD__) {
+          throw new Error("custom update installer is not newer than the installed application");
+        }
         resetInstallationState();
         return "not-newer";
       default:
@@ -463,6 +466,9 @@ async function downloadAndInstall(): Promise<UpdateInstallResult> {
 }
 
 async function installWithElevation(): Promise<boolean> {
+  if (__CUSTOM_BUILD__) {
+    throw new Error("unsafe update installation fallback is disabled for custom builds");
+  }
   const info = prepareInstallation();
   try {
     const installerPath = await downloadUpdate(info);
@@ -492,10 +498,16 @@ const handlers: Record<string, (...callArguments: never[]) => Promise<unknown>> 
   },
 
   async getGitHubToken(): Promise<string> {
+    if (__CUSTOM_BUILD__) {
+      return "";
+    }
     return githubTokenPreference.get();
   },
 
   async setGitHubToken(value: string): Promise<void> {
+    if (__CUSTOM_BUILD__) {
+      throw new Error("GitHub tokens are not used by the public custom update channel");
+    }
     const token = parseString(value).trim();
     githubTokenPreference.set(token === "" ? null : token);
   },
