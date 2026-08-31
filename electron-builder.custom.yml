@@ -1,0 +1,14 @@
+extends: electron-builder.yml
+productName: sing-box Custom
+fileAssociations: []
+win:
+  appId: io.nekohasekai.sfw.custom
+  forceCodeSigning: true
+  artifactName: sing-box-Custom-${version}-windows-x64.${ext}
+nsis:
+  artifactName: sing-box-Custom-${version}-windows-x64.${ext}
+directories:
+  output: release-custom-installer
+extraMetadata:
+  name: sing-box-custom
+  version: 1.14.0-beta.12-custom.3

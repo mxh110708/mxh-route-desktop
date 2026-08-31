@@ -4,7 +4,7 @@ SetFont "Segoe UI" 9
 
 !include WinMessages.nsh
 
-!define INSTALLATION_LAYOUT_REGISTRY_KEY "Software\SagerNet\sing-box"
+!define INSTALLATION_LAYOUT_REGISTRY_KEY "Software\SagerNet\sing-box-custom"
 !define TAILDROP_VERB_REGISTRY_KEY "Software\Classes\*\shell\Taildrop"
 
 !ifndef BUILD_UNINSTALLER
@@ -794,7 +794,7 @@ FunctionEnd
   StrCpy $installationFailureTimer ""
   StrCpy $dataMigrationPrepared 0
   SetShellVarContext all
-  StrCpy $daemonDataDirectory "$APPDATA\sing-box-daemon"
+  StrCpy $daemonDataDirectory "$APPDATA\sing-box-custom-daemon"
   StrCpy $0 0
   ReadRegDWORD $0 HKLM "${INSTALLATION_LAYOUT_REGISTRY_KEY}" "LayoutVersion"
   ${if} $0 == 2
@@ -817,14 +817,14 @@ FunctionEnd
     Pop $installationID
   ${endif}
   ${if} $daemonDataDirectory == ""
-    StrCpy $daemonDataDirectory "$APPDATA\sing-box-daemon"
+    StrCpy $daemonDataDirectory "$APPDATA\sing-box-custom-daemon"
   ${endif}
   StrCpy $previousApplicationDataDirectory $applicationDataDirectory
   StrCpy $previousDaemonDataDirectory $daemonDataDirectory
   StrCpy $previousInstallationID $installationID
   ${if} $hasExistingInstallation == 0
     ${if} $applicationDataDirectory == ""
-      StrCpy $applicationDataDirectory "$APPDATA\sing-box"
+      StrCpy $applicationDataDirectory "$APPDATA\sing-box-custom"
     ${endif}
     ${GetParameters} $R0
     ClearErrors
@@ -845,20 +845,20 @@ FunctionEnd
     ${endif}
   ${endif}
   ${if} $applicationDataDirectory == ""
-    StrCpy $fixedApplicationDataDirectory "$APPDATA\sing-box"
+    StrCpy $fixedApplicationDataDirectory "$APPDATA\sing-box-custom"
     StrCpy $userIndependentApplicationData ${BST_CHECKED}
   ${else}
     StrCpy $fixedApplicationDataDirectory $applicationDataDirectory
     StrCpy $userIndependentApplicationData ${BST_UNCHECKED}
   ${endif}
   SetShellVarContext current
-  StrCpy $userApplicationDataDirectory "$APPDATA\sing-box"
+  StrCpy $userApplicationDataDirectory "$APPDATA\sing-box-custom"
   SetShellVarContext all
   StrCpy $defaultInstallationDirectory $INSTDIR
   StrCpy $defaultApplicationDataDirectory $applicationDataDirectory
   StrCpy $defaultDaemonDataDirectory $daemonDataDirectory
   StrCpy $workingDirectory $daemonDataDirectory
-  StrCpy $dataTransitionStatePath "$APPDATA\sing-box-installer\data-transition.json"
+  StrCpy $dataTransitionStatePath "$APPDATA\sing-box-custom-installer\data-transition.json"
   InitPluginsDir
   File /oname=$PLUGINSDIR\installer-preflight.ps1 "${BUILD_RESOURCES_DIR}\installer-preflight.ps1"
   File /oname=$PLUGINSDIR\installer-service.ps1 "${BUILD_RESOURCES_DIR}\installer-service.ps1"
@@ -1631,7 +1631,7 @@ FunctionEnd
     ${endif}
   ${endif}
   DetailPrint "$(stoppingService)"
-  nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -Command "if (Get-Service -Name sing-box-daemon -ErrorAction SilentlyContinue) { Stop-Service -Name sing-box-daemon -Force -ErrorAction Stop; (Get-Service -Name sing-box-daemon).WaitForStatus([System.ServiceProcess.ServiceControllerStatus]::Stopped, [TimeSpan]::FromSeconds(10)) }"'
+  nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -Command "if (Get-Service -Name sing-box-custom-daemon -ErrorAction SilentlyContinue) { Stop-Service -Name sing-box-custom-daemon -Force -ErrorAction Stop; (Get-Service -Name sing-box-custom-daemon).WaitForStatus([System.ServiceProcess.ServiceControllerStatus]::Stopped, [TimeSpan]::FromSeconds(10)) }"'
   Pop $1
   ${if} $1 != 0
     Abort "$(stopServiceFailed)"
@@ -1826,7 +1826,7 @@ FunctionEnd
   StrCpy $applicationDataDirectory ""
   StrCpy $installationID ""
   SetShellVarContext all
-  StrCpy $daemonDataDirectory "$APPDATA\sing-box-daemon"
+  StrCpy $daemonDataDirectory "$APPDATA\sing-box-custom-daemon"
   StrCpy $0 0
   ReadRegDWORD $0 HKLM "${INSTALLATION_LAYOUT_REGISTRY_KEY}" "LayoutVersion"
   ${if} $0 == 2
@@ -1866,7 +1866,7 @@ FunctionEnd
       ${endif}
       ${if} $applicationDataDirectory == ""
         SetShellVarContext current
-        RMDir /r "$APPDATA\sing-box"
+        RMDir /r "$APPDATA\sing-box-custom"
         SetShellVarContext all
       ${endif}
       !insertmacro setInstallationLayoutRegistryView

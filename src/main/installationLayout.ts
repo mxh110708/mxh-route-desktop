@@ -9,7 +9,7 @@ export interface WindowsInstallationLayout {
   daemonDataDirectory: string;
 }
 
-const installationRegistryPath = String.raw`SOFTWARE\SagerNet\sing-box`;
+const installationRegistryPath = String.raw`SOFTWARE\SagerNet\sing-box-custom`;
 
 const installationLayoutScript = String.raw`
 $ErrorActionPreference = "Stop"
@@ -19,7 +19,7 @@ $applicationDataDirectory = $env:sing_box_default_application_data_directory
 $commonApplicationData = [Environment]::GetFolderPath(
   [Environment+SpecialFolder]::CommonApplicationData
 )
-$daemonDataDirectory = Join-Path $commonApplicationData "sing-box-daemon"
+$daemonDataDirectory = Join-Path $commonApplicationData "sing-box-custom-daemon"
 
 $registryView = if ([Environment]::Is64BitOperatingSystem) {
   [Microsoft.Win32.RegistryView]::Registry64

@@ -135,6 +135,7 @@ function createWindow(): BrowserWindow {
       MAIN_WINDOW_MINIMUM_HEIGHT,
       restoredBounds?.height ?? MAIN_WINDOW_MINIMUM_HEIGHT,
     ),
+    title: __CUSTOM_BUILD__ ? "sing-box Custom" : "sing-box",
     show: false,
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
     trafficLightPosition: process.platform === "darwin" ? { x: 18, y: 19 } : undefined,
@@ -417,9 +418,11 @@ const singleInstanceLock = app.requestSingleInstanceLock();
 if (!singleInstanceLock) {
   app.quit();
 } else {
-  app.setAsDefaultProtocolClient("sing-box");
-  if (process.platform === "win32") {
-    app.setAppUserModelId("io.nekohasekai.sfw");
+  if (!__CUSTOM_BUILD__) {
+    app.setAsDefaultProtocolClient("sing-box");
+    if (process.platform === "win32") {
+      app.setAppUserModelId("io.nekohasekai.sfw");
+    }
   }
 
   app.on("second-instance", (_event, argv, workingDirectory) => {

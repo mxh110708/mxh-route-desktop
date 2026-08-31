@@ -668,7 +668,7 @@ try {
         $commonApplicationData = [Environment]::GetFolderPath(
             [Environment+SpecialFolder]::CommonApplicationData
         )
-        $DaemonWorkingDirectory = Join-Path $commonApplicationData "sing-box-daemon"
+        $DaemonWorkingDirectory = Join-Path $commonApplicationData "sing-box-custom-daemon"
     }
     $workingDirectory = [System.IO.Path]::GetFullPath($DaemonWorkingDirectory)
     if (Test-PathOverlap $InstallationDirectory $workingDirectory) {
@@ -821,7 +821,7 @@ try {
     $expectedIdentities = @{
         "S-1-5-18" = $false
         "S-1-5-32-544" = $false
-        (Get-ServiceSid "sing-box-daemon") = $false
+        (Get-ServiceSid "sing-box-custom-daemon") = $false
     }
     $accessControl = Get-Acl -LiteralPath $workingDirectory
     $owner = $accessControl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value
