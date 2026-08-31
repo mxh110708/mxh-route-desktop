@@ -33,7 +33,7 @@ test("the custom installer cannot target the official service or data directorie
   assert.doesNotMatch(preflight, /Join-Path \$commonApplicationData "sing-box-daemon"/u);
 });
 
-test("the custom package does not claim official profile associations or updates", () => {
+test("the custom package does not claim official profile associations or update channel", () => {
   const builder = source("electron-builder.custom.yml");
   const index = source("src/main/index.ts");
   const tray = source("src/main/tray.ts");
@@ -48,7 +48,21 @@ test("the custom package does not claim official profile associations or updates
   );
   assert.match(index, /title: __CUSTOM_BUILD__ \? "sing-box Custom" : "sing-box"/u);
   assert.match(tray, /APPLICATION_LABEL = __CUSTOM_BUILD__ \? "sing-box Custom" : "sing-box"/u);
-  assert.match(updates, /!__CUSTOM_BUILD__ && process\.platform === "win32"/u);
+  assert.match(updates, /releasesURL\(__CUSTOM_BUILD__\)/u);
+  assert.match(updates, /isTrustedDownloadURL\(__CUSTOM_BUILD__, info\.downloadURL\)/u);
+  const updateSource = source("src/main/updateSource.ts");
+  assert.match(
+    updateSource,
+    /api\.github\.com\/repos\/mxh110708\/sing-box-for-desktop-custom\/releases/u,
+  );
+  assert.match(updateSource, /sing-box-Custom-\$\{version\}-windows-x64/u);
+  assert.doesNotMatch(updateSource, /BEGIN (?:RSA|OPENSSH|EC) PRIVATE KEY/u);
+
+  const packageScript = source("scripts/package.ts");
+  assert.match(packageScript, /electron-builder\.custom\.yml/u);
+  assert.match(packageScript, /sing-box-Custom-\\\$\{version\}-windows-/u);
+  assert.match(packageScript, /custom Windows packages currently support only x64/u);
+  assert.match(updates, /unsafe update installation fallback is disabled for custom builds/u);
 });
 
 test("desktop and daemon identities are parallel to the official installation", () => {

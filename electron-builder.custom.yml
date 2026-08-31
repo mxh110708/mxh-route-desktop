@@ -11,4 +11,4 @@ directories:
   output: release-custom-installer
 extraMetadata:
   name: sing-box-custom
-  version: 1.14.0-beta.12-custom.3
+  version: 1.14.0-beta.14-custom.1

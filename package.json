@@ -36,12 +36,14 @@
     "package-dev:linux:rpm": "tsx scripts/package.ts dev linux rpm",
     "package-dev:linux:pacman": "tsx scripts/package.ts dev linux pacman",
     "package:win": "tsx scripts/package.ts win",
+    "package:custom:win": "tsx scripts/package.ts custom-win x64",
     "package:linux": "tsx scripts/package.ts linux",
     "package:linux:deb": "tsx scripts/package.ts linux deb",
     "package:linux:rpm": "tsx scripts/package.ts linux rpm",
     "package:linux:pacman": "tsx scripts/package.ts linux pacman",
     "postinstall": "electron-builder install-app-deps",
     "test:runtime-config": "tsx --test src/main/runtimeConfig.test.ts",
+    "test:update-source": "tsx --test src/main/updateSource.test.ts",
     "typecheck": "tsc -b"
   },
   "devDependencies": {
