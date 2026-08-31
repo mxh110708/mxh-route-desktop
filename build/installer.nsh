@@ -4,7 +4,7 @@ SetFont "Segoe UI" 9
 
 !include WinMessages.nsh
 
-!define INSTALLATION_LAYOUT_REGISTRY_KEY "Software\SagerNet\sing-box-custom"
+!define INSTALLATION_LAYOUT_REGISTRY_KEY "Software\MXH\Route"
 !define TAILDROP_VERB_REGISTRY_KEY "Software\Classes\*\shell\Taildrop"
 
 !ifndef BUILD_UNINSTALLER
@@ -300,11 +300,11 @@ FunctionEnd
   LangString migrateExistingData ${LANG_FARSI} "انتقال داده‌های موجود هنگام تغییر پوشهٔ داده"
   LangString migrateExistingData ${LANG_RUSSIAN} "Перенести существующие данные при изменении каталога"
 
-  LangString migratingExistingData ${LANG_ENGLISH} "Migrating existing sing-box data..."
-  LangString migratingExistingData ${LANG_SIMPCHINESE} "正在迁移现有 sing-box 数据..."
-  LangString migratingExistingData ${LANG_TRADCHINESE} "正在遷移現有 sing-box 資料..."
-  LangString migratingExistingData ${LANG_FARSI} "در حال انتقال داده‌های موجود sing-box..."
-  LangString migratingExistingData ${LANG_RUSSIAN} "Перенос существующих данных sing-box..."
+  LangString migratingExistingData ${LANG_ENGLISH} "Migrating existing MXH Route data..."
+  LangString migratingExistingData ${LANG_SIMPCHINESE} "正在迁移现有 MXH Route 数据..."
+  LangString migratingExistingData ${LANG_TRADCHINESE} "正在遷移現有 MXH Route 資料..."
+  LangString migratingExistingData ${LANG_FARSI} "در حال انتقال داده‌های موجود MXH Route..."
+  LangString migratingExistingData ${LANG_RUSSIAN} "Перенос существующих данных MXH Route..."
 
   LangString dataMigrationFailed ${LANG_ENGLISH} "Could not migrate the existing data (code $1). No old data was removed."
   LangString dataMigrationFailed ${LANG_SIMPCHINESE} "无法迁移现有数据（代码 $1）；旧数据未被删除。"
@@ -342,23 +342,23 @@ FunctionEnd
   LangString invalidApplicationDataDirectory ${LANG_FARSI} "پوشهٔ دادهٔ برنامه نامعتبر، ناامن یا پشتیبانی‌نشده است:$\r$\n$0"
   LangString invalidApplicationDataDirectory ${LANG_RUSSIAN} "Каталог данных приложения недопустим, небезопасен или не поддерживается:$\r$\n$0"
 
-  LangString stoppingService ${LANG_ENGLISH} "Stopping the sing-box service..."
-  LangString stoppingService ${LANG_SIMPCHINESE} "正在停止 sing-box 守护进程..."
-  LangString stoppingService ${LANG_TRADCHINESE} "正在停止 sing-box 守護程序..."
-  LangString stoppingService ${LANG_FARSI} "در حال توقف سرویس sing-box..."
-  LangString stoppingService ${LANG_RUSSIAN} "Остановка службы sing-box..."
+  LangString stoppingService ${LANG_ENGLISH} "Stopping the MXH Route service..."
+  LangString stoppingService ${LANG_SIMPCHINESE} "正在停止 MXH Route 守护进程..."
+  LangString stoppingService ${LANG_TRADCHINESE} "正在停止 MXH Route 守護程序..."
+  LangString stoppingService ${LANG_FARSI} "در حال توقف سرویس MXH Route..."
+  LangString stoppingService ${LANG_RUSSIAN} "Остановка службы MXH Route..."
 
-  LangString checkingRunningApplication ${LANG_ENGLISH} "Checking for running sing-box applications..."
-  LangString checkingRunningApplication ${LANG_SIMPCHINESE} "正在检查运行中的 sing-box 应用..."
-  LangString checkingRunningApplication ${LANG_TRADCHINESE} "正在檢查執行中的 sing-box 應用程式..."
-  LangString checkingRunningApplication ${LANG_FARSI} "در حال بررسی برنامه‌های در حال اجرای sing-box..."
-  LangString checkingRunningApplication ${LANG_RUSSIAN} "Проверка запущенных приложений sing-box..."
+  LangString checkingRunningApplication ${LANG_ENGLISH} "Checking for running MXH Route applications..."
+  LangString checkingRunningApplication ${LANG_SIMPCHINESE} "正在检查运行中的 MXH Route 应用..."
+  LangString checkingRunningApplication ${LANG_TRADCHINESE} "正在檢查執行中的 MXH Route 應用程式..."
+  LangString checkingRunningApplication ${LANG_FARSI} "در حال بررسی برنامه‌های در حال اجرای MXH Route..."
+  LangString checkingRunningApplication ${LANG_RUSSIAN} "Проверка запущенных приложений MXH Route..."
 
-  LangString closingApplication ${LANG_ENGLISH} "Closing sing-box..."
-  LangString closingApplication ${LANG_SIMPCHINESE} "正在关闭 sing-box 应用..."
-  LangString closingApplication ${LANG_TRADCHINESE} "正在關閉 sing-box 應用程式..."
-  LangString closingApplication ${LANG_FARSI} "در حال بستن sing-box..."
-  LangString closingApplication ${LANG_RUSSIAN} "Закрытие sing-box..."
+  LangString closingApplication ${LANG_ENGLISH} "Closing MXH Route..."
+  LangString closingApplication ${LANG_SIMPCHINESE} "正在关闭 MXH Route 应用..."
+  LangString closingApplication ${LANG_TRADCHINESE} "正在關閉 MXH Route 應用程式..."
+  LangString closingApplication ${LANG_FARSI} "در حال بستن MXH Route..."
+  LangString closingApplication ${LANG_RUSSIAN} "Закрытие MXH Route..."
 
   LangString checkingInstallationLocations ${LANG_ENGLISH} "Checking installation locations..."
   LangString checkingInstallationLocations ${LANG_SIMPCHINESE} "正在检查安装位置..."
@@ -384,11 +384,11 @@ FunctionEnd
   LangString completingDataMigration ${LANG_FARSI} "در حال تکمیل انتقال داده‌ها..."
   LangString completingDataMigration ${LANG_RUSSIAN} "Завершение переноса данных..."
 
-  LangString stopServiceFailed ${LANG_ENGLISH} "Failed to stop the sing-box service."
-  LangString stopServiceFailed ${LANG_SIMPCHINESE} "无法停止 sing-box 守护进程。"
-  LangString stopServiceFailed ${LANG_TRADCHINESE} "無法停止 sing-box 守護程序。"
-  LangString stopServiceFailed ${LANG_FARSI} "توقف سرویس sing-box ناموفق بود."
-  LangString stopServiceFailed ${LANG_RUSSIAN} "Не удалось остановить службу sing-box."
+  LangString stopServiceFailed ${LANG_ENGLISH} "Failed to stop the MXH Route service."
+  LangString stopServiceFailed ${LANG_SIMPCHINESE} "无法停止 MXH Route 守护进程。"
+  LangString stopServiceFailed ${LANG_TRADCHINESE} "無法停止 MXH Route 守護程序。"
+  LangString stopServiceFailed ${LANG_FARSI} "توقف سرویس MXH Route ناموفق بود."
+  LangString stopServiceFailed ${LANG_RUSSIAN} "Не удалось остановить службу MXH Route."
 
   LangString previousUninstallerFailed ${LANG_ENGLISH} "The previous uninstaller returned code $R0; continuing the upgrade."
   LangString previousUninstallerFailed ${LANG_SIMPCHINESE} "旧版本卸载程序返回代码 $R0；继续升级。"
@@ -408,17 +408,17 @@ FunctionEnd
   LangString unknownNativeArchitecture ${LANG_FARSI} "ناشناخته"
   LangString unknownNativeArchitecture ${LANG_RUSSIAN} "неизвестна"
 
-  LangString registeringService ${LANG_ENGLISH} "Registering the sing-box service..."
-  LangString registeringService ${LANG_SIMPCHINESE} "正在注册 sing-box 守护进程..."
-  LangString registeringService ${LANG_TRADCHINESE} "正在註冊 sing-box 守護程序..."
-  LangString registeringService ${LANG_FARSI} "در حال ثبت سرویس sing-box..."
-  LangString registeringService ${LANG_RUSSIAN} "Регистрация службы sing-box..."
+  LangString registeringService ${LANG_ENGLISH} "Registering the MXH Route service..."
+  LangString registeringService ${LANG_SIMPCHINESE} "正在注册 MXH Route 守护进程..."
+  LangString registeringService ${LANG_TRADCHINESE} "正在註冊 MXH Route 守護程序..."
+  LangString registeringService ${LANG_FARSI} "در حال ثبت سرویس MXH Route..."
+  LangString registeringService ${LANG_RUSSIAN} "Регистрация службы MXH Route..."
 
-  LangString registerServiceFailed ${LANG_ENGLISH} "Failed to register the sing-box service (code $1)."
-  LangString registerServiceFailed ${LANG_SIMPCHINESE} "无法注册 sing-box 守护进程（代码 $1）。"
-  LangString registerServiceFailed ${LANG_TRADCHINESE} "無法註冊 sing-box 守護程序（代碼 $1）。"
-  LangString registerServiceFailed ${LANG_FARSI} "ثبت سرویس sing-box ناموفق بود (کد $1)."
-  LangString registerServiceFailed ${LANG_RUSSIAN} "Не удалось зарегистрировать службу sing-box (код $1)."
+  LangString registerServiceFailed ${LANG_ENGLISH} "Failed to register the MXH Route service (code $1)."
+  LangString registerServiceFailed ${LANG_SIMPCHINESE} "无法注册 MXH Route 守护进程（代码 $1）。"
+  LangString registerServiceFailed ${LANG_TRADCHINESE} "無法註冊 MXH Route 守護程序（代碼 $1）。"
+  LangString registerServiceFailed ${LANG_FARSI} "ثبت سرویس MXH Route ناموفق بود (کد $1)."
+  LangString registerServiceFailed ${LANG_RUSSIAN} "Не удалось зарегистрировать службу MXH Route (код $1)."
 
   LangString serviceCommandNoDetails ${LANG_ENGLISH} "The service command produced no diagnostic output."
   LangString serviceCommandNoDetails ${LANG_SIMPCHINESE} "守护进程管理命令未产生诊断输出。"
@@ -426,11 +426,11 @@ FunctionEnd
   LangString serviceCommandNoDetails ${LANG_FARSI} "فرمان سرویس هیچ خروجی عیب‌یابی ایجاد نکرد."
   LangString serviceCommandNoDetails ${LANG_RUSSIAN} "Команда службы не вывела диагностических данных."
 
-  LangString copyingApplicationFiles ${LANG_ENGLISH} "Copying sing-box application files..."
-  LangString copyingApplicationFiles ${LANG_SIMPCHINESE} "正在复制 sing-box 应用程序文件..."
-  LangString copyingApplicationFiles ${LANG_TRADCHINESE} "正在複製 sing-box 應用程式檔案..."
-  LangString copyingApplicationFiles ${LANG_FARSI} "در حال کپی فایل‌های برنامهٔ sing-box..."
-  LangString copyingApplicationFiles ${LANG_RUSSIAN} "Копирование файлов приложения sing-box..."
+  LangString copyingApplicationFiles ${LANG_ENGLISH} "Copying MXH Route application files..."
+  LangString copyingApplicationFiles ${LANG_SIMPCHINESE} "正在复制 MXH Route 应用程序文件..."
+  LangString copyingApplicationFiles ${LANG_TRADCHINESE} "正在複製 MXH Route 應用程式檔案..."
+  LangString copyingApplicationFiles ${LANG_FARSI} "در حال کپی فایل‌های برنامهٔ MXH Route..."
+  LangString copyingApplicationFiles ${LANG_RUSSIAN} "Копирование файлов приложения MXH Route..."
 
   LangString rollingBackInstallation ${LANG_ENGLISH} "The service setup failed. Removing the installed application..."
   LangString rollingBackInstallation ${LANG_SIMPCHINESE} "守护进程设置失败，正在移除已安装的应用程序..."
@@ -438,17 +438,17 @@ FunctionEnd
   LangString rollingBackInstallation ${LANG_FARSI} "راه‌اندازی سرویس ناموفق بود. برنامهٔ نصب‌شده در حال حذف است..."
   LangString rollingBackInstallation ${LANG_RUSSIAN} "Не удалось настроить службу. Удаление установленного приложения..."
 
-  LangString registerServiceFailedRolledBack ${LANG_ENGLISH} "Failed to register the sing-box service (code $1). The installed application was removed.$\r$\n$\r$\n$3"
-  LangString registerServiceFailedRolledBack ${LANG_SIMPCHINESE} "无法注册 sing-box 守护进程（代码 $1）。已移除安装的应用程序。$\r$\n$\r$\n$3"
-  LangString registerServiceFailedRolledBack ${LANG_TRADCHINESE} "無法註冊 sing-box 守護程序（代碼 $1）。已移除安裝的應用程式。$\r$\n$\r$\n$3"
-  LangString registerServiceFailedRolledBack ${LANG_FARSI} "ثبت سرویس sing-box ناموفق بود (کد $1). برنامهٔ نصب‌شده حذف شد.$\r$\n$\r$\n$3"
-  LangString registerServiceFailedRolledBack ${LANG_RUSSIAN} "Не удалось зарегистрировать службу sing-box (код $1). Установленное приложение удалено.$\r$\n$\r$\n$3"
+  LangString registerServiceFailedRolledBack ${LANG_ENGLISH} "Failed to register the MXH Route service (code $1). The installed application was removed.$\r$\n$\r$\n$3"
+  LangString registerServiceFailedRolledBack ${LANG_SIMPCHINESE} "无法注册 MXH Route 守护进程（代码 $1）。已移除安装的应用程序。$\r$\n$\r$\n$3"
+  LangString registerServiceFailedRolledBack ${LANG_TRADCHINESE} "無法註冊 MXH Route 守護程序（代碼 $1）。已移除安裝的應用程式。$\r$\n$\r$\n$3"
+  LangString registerServiceFailedRolledBack ${LANG_FARSI} "ثبت سرویس MXH Route ناموفق بود (کد $1). برنامهٔ نصب‌شده حذف شد.$\r$\n$\r$\n$3"
+  LangString registerServiceFailedRolledBack ${LANG_RUSSIAN} "Не удалось зарегистрировать службу MXH Route (код $1). Установленное приложение удалено.$\r$\n$\r$\n$3"
 
-  LangString registerServiceFailedRollbackFailed ${LANG_ENGLISH} "Failed to register the sing-box service (code $1), and automatic removal failed (code $2).$\r$\n$\r$\n$3"
-  LangString registerServiceFailedRollbackFailed ${LANG_SIMPCHINESE} "无法注册 sing-box 守护进程（代码 $1），且自动移除失败（代码 $2）。$\r$\n$\r$\n$3"
-  LangString registerServiceFailedRollbackFailed ${LANG_TRADCHINESE} "無法註冊 sing-box 守護程序（代碼 $1），且自動移除失敗（代碼 $2）。$\r$\n$\r$\n$3"
-  LangString registerServiceFailedRollbackFailed ${LANG_FARSI} "ثبت سرویس sing-box ناموفق بود (کد $1) و حذف خودکار نیز ناموفق بود (کد $2).$\r$\n$\r$\n$3"
-  LangString registerServiceFailedRollbackFailed ${LANG_RUSSIAN} "Не удалось зарегистрировать службу sing-box (код $1), а автоматическое удаление завершилось ошибкой (код $2).$\r$\n$\r$\n$3"
+  LangString registerServiceFailedRollbackFailed ${LANG_ENGLISH} "Failed to register the MXH Route service (code $1), and automatic removal failed (code $2).$\r$\n$\r$\n$3"
+  LangString registerServiceFailedRollbackFailed ${LANG_SIMPCHINESE} "无法注册 MXH Route 守护进程（代码 $1），且自动移除失败（代码 $2）。$\r$\n$\r$\n$3"
+  LangString registerServiceFailedRollbackFailed ${LANG_TRADCHINESE} "無法註冊 MXH Route 守護程序（代碼 $1），且自動移除失敗（代碼 $2）。$\r$\n$\r$\n$3"
+  LangString registerServiceFailedRollbackFailed ${LANG_FARSI} "ثبت سرویس MXH Route ناموفق بود (کد $1) و حذف خودکار نیز ناموفق بود (کد $2).$\r$\n$\r$\n$3"
+  LangString registerServiceFailedRollbackFailed ${LANG_RUSSIAN} "Не удалось зарегистрировать службу MXH Route (код $1), а автоматическое удаление завершилось ошибкой (код $2).$\r$\n$\r$\n$3"
 
   LangString unsafeInstallationDirectory ${LANG_ENGLISH} "The installation directory contains a reparse point or is not a normal directory:$\r$\n$INSTDIR"
   LangString unsafeInstallationDirectory ${LANG_SIMPCHINESE} "安装目录包含重解析点或不是普通目录：$\r$\n$INSTDIR"
@@ -534,11 +534,11 @@ FunctionEnd
   LangString unsafeInstallationConfirmationSubtitle ${LANG_FARSI} "برای ادامه باید تأیید زیر را انتخاب کنید."
   LangString unsafeInstallationConfirmationSubtitle ${LANG_RUSSIAN} "Чтобы продолжить, установите флажок подтверждения ниже."
 
-  LangString unsafeInstallationConfirmationWarning ${LANG_ENGLISH} "The installer and service will skip path security checks and permission hardening. This can allow another program to replace sing-box data or binaries and elevate privileges to SYSTEM."
-  LangString unsafeInstallationConfirmationWarning ${LANG_SIMPCHINESE} "安装程序和守护进程将跳过路径安全检查与权限加固。这可能允许其他程序替换 sing-box 数据或程序文件并提权到 SYSTEM。"
-  LangString unsafeInstallationConfirmationWarning ${LANG_TRADCHINESE} "安裝程式和守護程序將略過路徑安全檢查與權限強化。這可能允許其他程式取代 sing-box 資料或程式檔案並將權限提升至 SYSTEM。"
-  LangString unsafeInstallationConfirmationWarning ${LANG_FARSI} "نصب‌کننده و سرویس، بررسی امنیت مسیر و ایمن‌سازی مجوزها را نادیده می‌گیرند. این کار ممکن است به برنامه‌ای دیگر اجازه دهد داده‌ها یا فایل‌های sing-box را جایگزین کند و سطح دسترسی را به SYSTEM برساند."
-  LangString unsafeInstallationConfirmationWarning ${LANG_RUSSIAN} "Установщик и служба пропустят проверку безопасности путей и усиление разрешений. Другая программа сможет подменить данные или файлы sing-box и повысить привилегии до SYSTEM."
+  LangString unsafeInstallationConfirmationWarning ${LANG_ENGLISH} "The installer and service will skip path security checks and permission hardening. This can allow another program to replace MXH Route data or binaries and elevate privileges to SYSTEM."
+  LangString unsafeInstallationConfirmationWarning ${LANG_SIMPCHINESE} "安装程序和守护进程将跳过路径安全检查与权限加固。这可能允许其他程序替换 MXH Route 数据或程序文件并提权到 SYSTEM。"
+  LangString unsafeInstallationConfirmationWarning ${LANG_TRADCHINESE} "安裝程式和守護程序將略過路徑安全檢查與權限強化。這可能允許其他程式取代 MXH Route 資料或程式檔案並將權限提升至 SYSTEM。"
+  LangString unsafeInstallationConfirmationWarning ${LANG_FARSI} "نصب‌کننده و سرویس، بررسی امنیت مسیر و ایمن‌سازی مجوزها را نادیده می‌گیرند. این کار ممکن است به برنامه‌ای دیگر اجازه دهد داده‌ها یا فایل‌های MXH Route را جایگزین کند و سطح دسترسی را به SYSTEM برساند."
+  LangString unsafeInstallationConfirmationWarning ${LANG_RUSSIAN} "Установщик и служба пропустят проверку безопасности путей и усиление разрешений. Другая программа сможет подменить данные или файлы MXH Route и повысить привилегии до SYSTEM."
 
   LangString unsafeInstallationAcknowledgement ${LANG_ENGLISH} "I understand and accept this security risk."
   LangString unsafeInstallationAcknowledgement ${LANG_SIMPCHINESE} "我理解并接受此安全风险。"
@@ -601,23 +601,23 @@ FunctionEnd
   LangString repairInstallationAncestorFailed ${LANG_RUSSIAN} "Не удалось исправить разрешения пути (код $1). Файлы приложения ещё не устанавливались."
 
   !ifndef BUILD_UNINSTALLER
-  LangString resetWorkingDirectoryPrompt ${LANG_ENGLISH} "The sing-box service data directory is invalid:$\r$\n$workingDirectory$\r$\nContinuing will delete this directory so the service can recreate it securely. Continue?"
-  LangString resetWorkingDirectoryPrompt ${LANG_SIMPCHINESE} "sing-box 守护进程数据目录无效：$\r$\n$workingDirectory$\r$\n继续安装将删除此目录，以便守护进程用安全权限重新创建。是否继续？"
-  LangString resetWorkingDirectoryPrompt ${LANG_TRADCHINESE} "sing-box 守護程序資料目錄無效：$\r$\n$workingDirectory$\r$\n繼續安裝將刪除此目錄，以便守護程序用安全權限重新建立。是否繼續？"
-  LangString resetWorkingDirectoryPrompt ${LANG_FARSI} "پوشهٔ دادهٔ سرویس sing-box نامعتبر است:$\r$\n$workingDirectory$\r$\nبا ادامه، این پوشه حذف می‌شود تا سرویس آن را با مجوزهای امن دوباره ایجاد کند. ادامه می‌دهید؟"
-  LangString resetWorkingDirectoryPrompt ${LANG_RUSSIAN} "Каталог данных службы sing-box недействителен:$\r$\n$workingDirectory$\r$\nПри продолжении каталог будет удалён, чтобы служба могла безопасно создать его заново. Продолжить?"
+  LangString resetWorkingDirectoryPrompt ${LANG_ENGLISH} "The MXH Route service data directory is invalid:$\r$\n$workingDirectory$\r$\nContinuing will delete this directory so the service can recreate it securely. Continue?"
+  LangString resetWorkingDirectoryPrompt ${LANG_SIMPCHINESE} "MXH Route 守护进程数据目录无效：$\r$\n$workingDirectory$\r$\n继续安装将删除此目录，以便守护进程用安全权限重新创建。是否继续？"
+  LangString resetWorkingDirectoryPrompt ${LANG_TRADCHINESE} "MXH Route 守護程序資料目錄無效：$\r$\n$workingDirectory$\r$\n繼續安裝將刪除此目錄，以便守護程序用安全權限重新建立。是否繼續？"
+  LangString resetWorkingDirectoryPrompt ${LANG_FARSI} "پوشهٔ دادهٔ سرویس MXH Route نامعتبر است:$\r$\n$workingDirectory$\r$\nبا ادامه، این پوشه حذف می‌شود تا سرویس آن را با مجوزهای امن دوباره ایجاد کند. ادامه می‌دهید؟"
+  LangString resetWorkingDirectoryPrompt ${LANG_RUSSIAN} "Каталог данных службы MXH Route недействителен:$\r$\n$workingDirectory$\r$\nПри продолжении каталог будет удалён, чтобы служба могла безопасно создать его заново. Продолжить?"
 
-  LangString resettingWorkingDirectory ${LANG_ENGLISH} "Resetting the sing-box service data directory..."
-  LangString resettingWorkingDirectory ${LANG_SIMPCHINESE} "正在重置 sing-box 守护进程数据目录..."
-  LangString resettingWorkingDirectory ${LANG_TRADCHINESE} "正在重設 sing-box 守護程序資料目錄..."
-  LangString resettingWorkingDirectory ${LANG_FARSI} "در حال بازنشانی پوشهٔ دادهٔ سرویس sing-box..."
-  LangString resettingWorkingDirectory ${LANG_RUSSIAN} "Сброс каталога данных службы sing-box..."
+  LangString resettingWorkingDirectory ${LANG_ENGLISH} "Resetting the MXH Route service data directory..."
+  LangString resettingWorkingDirectory ${LANG_SIMPCHINESE} "正在重置 MXH Route 守护进程数据目录..."
+  LangString resettingWorkingDirectory ${LANG_TRADCHINESE} "正在重設 MXH Route 守護程序資料目錄..."
+  LangString resettingWorkingDirectory ${LANG_FARSI} "در حال بازنشانی پوشهٔ دادهٔ سرویس MXH Route..."
+  LangString resettingWorkingDirectory ${LANG_RUSSIAN} "Сброс каталога данных службы MXH Route..."
 
-  LangString resetWorkingDirectoryFailed ${LANG_ENGLISH} "Could not reset the sing-box service data directory (code $1). No application files were installed."
-  LangString resetWorkingDirectoryFailed ${LANG_SIMPCHINESE} "无法重置 sing-box 守护进程数据目录（代码 $1）。尚未安装任何应用程序文件。"
-  LangString resetWorkingDirectoryFailed ${LANG_TRADCHINESE} "無法重設 sing-box 守護程序資料目錄（代碼 $1）。尚未安裝任何應用程式檔案。"
-  LangString resetWorkingDirectoryFailed ${LANG_FARSI} "بازنشانی پوشهٔ دادهٔ سرویس sing-box ممکن نشد (کد $1). هیچ فایل برنامه‌ای نصب نشد."
-  LangString resetWorkingDirectoryFailed ${LANG_RUSSIAN} "Не удалось сбросить каталог данных службы sing-box (код $1). Файлы приложения ещё не устанавливались."
+  LangString resetWorkingDirectoryFailed ${LANG_ENGLISH} "Could not reset the MXH Route service data directory (code $1). No application files were installed."
+  LangString resetWorkingDirectoryFailed ${LANG_SIMPCHINESE} "无法重置 MXH Route 守护进程数据目录（代码 $1）。尚未安装任何应用程序文件。"
+  LangString resetWorkingDirectoryFailed ${LANG_TRADCHINESE} "無法重設 MXH Route 守護程序資料目錄（代碼 $1）。尚未安裝任何應用程式檔案。"
+  LangString resetWorkingDirectoryFailed ${LANG_FARSI} "بازنشانی پوشهٔ دادهٔ سرویس MXH Route ممکن نشد (کد $1). هیچ فایل برنامه‌ای نصب نشد."
+  LangString resetWorkingDirectoryFailed ${LANG_RUSSIAN} "Не удалось сбросить каталог данных службы MXH Route (код $1). Файлы приложения ещё не устанавливались."
   !endif
 
   LangString preflightFailed ${LANG_ENGLISH} "Could not validate the installation directories (code $1)."
@@ -626,23 +626,23 @@ FunctionEnd
   LangString preflightFailed ${LANG_FARSI} "اعتبارسنجی پوشه‌های نصب ممکن نشد (کد $1)."
   LangString preflightFailed ${LANG_RUSSIAN} "Не удалось проверить каталоги установки (код $1)."
 
-  LangString removingService ${LANG_ENGLISH} "Removing the sing-box service..."
-  LangString removingService ${LANG_SIMPCHINESE} "正在移除 sing-box 守护进程..."
-  LangString removingService ${LANG_TRADCHINESE} "正在移除 sing-box 守護程序..."
-  LangString removingService ${LANG_FARSI} "در حال حذف سرویس sing-box..."
-  LangString removingService ${LANG_RUSSIAN} "Удаление службы sing-box..."
+  LangString removingService ${LANG_ENGLISH} "Removing the MXH Route service..."
+  LangString removingService ${LANG_SIMPCHINESE} "正在移除 MXH Route 守护进程..."
+  LangString removingService ${LANG_TRADCHINESE} "正在移除 MXH Route 守護程序..."
+  LangString removingService ${LANG_FARSI} "در حال حذف سرویس MXH Route..."
+  LangString removingService ${LANG_RUSSIAN} "Удаление службы MXH Route..."
 
-  LangString removeServiceFailed ${LANG_ENGLISH} "Failed to remove the sing-box service (code $1).$\r$\n$\r$\n$3"
-  LangString removeServiceFailed ${LANG_SIMPCHINESE} "无法移除 sing-box 守护进程（代码 $1）。$\r$\n$\r$\n$3"
-  LangString removeServiceFailed ${LANG_TRADCHINESE} "無法移除 sing-box 守護程序（代碼 $1）。$\r$\n$\r$\n$3"
-  LangString removeServiceFailed ${LANG_FARSI} "حذف سرویس sing-box ناموفق بود (کد $1).$\r$\n$\r$\n$3"
-  LangString removeServiceFailed ${LANG_RUSSIAN} "Не удалось удалить службу sing-box (код $1).$\r$\n$\r$\n$3"
+  LangString removeServiceFailed ${LANG_ENGLISH} "Failed to remove the MXH Route service (code $1).$\r$\n$\r$\n$3"
+  LangString removeServiceFailed ${LANG_SIMPCHINESE} "无法移除 MXH Route 守护进程（代码 $1）。$\r$\n$\r$\n$3"
+  LangString removeServiceFailed ${LANG_TRADCHINESE} "無法移除 MXH Route 守護程序（代碼 $1）。$\r$\n$\r$\n$3"
+  LangString removeServiceFailed ${LANG_FARSI} "حذف سرویس MXH Route ناموفق بود (کد $1).$\r$\n$\r$\n$3"
+  LangString removeServiceFailed ${LANG_RUSSIAN} "Не удалось удалить службу MXH Route (код $1).$\r$\n$\r$\n$3"
 
-  LangString removingData ${LANG_ENGLISH} "Removing sing-box data..."
-  LangString removingData ${LANG_SIMPCHINESE} "正在移除 sing-box 数据..."
-  LangString removingData ${LANG_TRADCHINESE} "正在移除 sing-box 資料..."
-  LangString removingData ${LANG_FARSI} "در حال حذف داده‌های sing-box..."
-  LangString removingData ${LANG_RUSSIAN} "Удаление данных sing-box..."
+  LangString removingData ${LANG_ENGLISH} "Removing MXH Route data..."
+  LangString removingData ${LANG_SIMPCHINESE} "正在移除 MXH Route 数据..."
+  LangString removingData ${LANG_TRADCHINESE} "正在移除 MXH Route 資料..."
+  LangString removingData ${LANG_FARSI} "در حال حذف داده‌های MXH Route..."
+  LangString removingData ${LANG_RUSSIAN} "Удаление данных MXH Route..."
 !macroend
 
 !macro setInstallationLayoutRegistryView
@@ -794,7 +794,7 @@ FunctionEnd
   StrCpy $installationFailureTimer ""
   StrCpy $dataMigrationPrepared 0
   SetShellVarContext all
-  StrCpy $daemonDataDirectory "$APPDATA\sing-box-custom-daemon"
+  StrCpy $daemonDataDirectory "$APPDATA\mxh-route-daemon"
   StrCpy $0 0
   ReadRegDWORD $0 HKLM "${INSTALLATION_LAYOUT_REGISTRY_KEY}" "LayoutVersion"
   ${if} $0 == 2
@@ -817,14 +817,14 @@ FunctionEnd
     Pop $installationID
   ${endif}
   ${if} $daemonDataDirectory == ""
-    StrCpy $daemonDataDirectory "$APPDATA\sing-box-custom-daemon"
+    StrCpy $daemonDataDirectory "$APPDATA\mxh-route-daemon"
   ${endif}
   StrCpy $previousApplicationDataDirectory $applicationDataDirectory
   StrCpy $previousDaemonDataDirectory $daemonDataDirectory
   StrCpy $previousInstallationID $installationID
   ${if} $hasExistingInstallation == 0
     ${if} $applicationDataDirectory == ""
-      StrCpy $applicationDataDirectory "$APPDATA\sing-box-custom"
+      StrCpy $applicationDataDirectory "$APPDATA\mxh-route"
     ${endif}
     ${GetParameters} $R0
     ClearErrors
@@ -845,20 +845,20 @@ FunctionEnd
     ${endif}
   ${endif}
   ${if} $applicationDataDirectory == ""
-    StrCpy $fixedApplicationDataDirectory "$APPDATA\sing-box-custom"
+    StrCpy $fixedApplicationDataDirectory "$APPDATA\mxh-route"
     StrCpy $userIndependentApplicationData ${BST_CHECKED}
   ${else}
     StrCpy $fixedApplicationDataDirectory $applicationDataDirectory
     StrCpy $userIndependentApplicationData ${BST_UNCHECKED}
   ${endif}
   SetShellVarContext current
-  StrCpy $userApplicationDataDirectory "$APPDATA\sing-box-custom"
+  StrCpy $userApplicationDataDirectory "$APPDATA\mxh-route"
   SetShellVarContext all
   StrCpy $defaultInstallationDirectory $INSTDIR
   StrCpy $defaultApplicationDataDirectory $applicationDataDirectory
   StrCpy $defaultDaemonDataDirectory $daemonDataDirectory
   StrCpy $workingDirectory $daemonDataDirectory
-  StrCpy $dataTransitionStatePath "$APPDATA\sing-box-custom-installer\data-transition.json"
+  StrCpy $dataTransitionStatePath "$APPDATA\mxh-route-installer\data-transition.json"
   InitPluginsDir
   File /oname=$PLUGINSDIR\installer-preflight.ps1 "${BUILD_RESOURCES_DIR}\installer-preflight.ps1"
   File /oname=$PLUGINSDIR\installer-service.ps1 "${BUILD_RESOURCES_DIR}\installer-service.ps1"
@@ -1631,7 +1631,7 @@ FunctionEnd
     ${endif}
   ${endif}
   DetailPrint "$(stoppingService)"
-  nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -Command "if (Get-Service -Name sing-box-custom-daemon -ErrorAction SilentlyContinue) { Stop-Service -Name sing-box-custom-daemon -Force -ErrorAction Stop; (Get-Service -Name sing-box-custom-daemon).WaitForStatus([System.ServiceProcess.ServiceControllerStatus]::Stopped, [TimeSpan]::FromSeconds(10)) }"'
+  nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -Command "if (Get-Service -Name mxh-route-daemon -ErrorAction SilentlyContinue) { Stop-Service -Name mxh-route-daemon -Force -ErrorAction Stop; (Get-Service -Name mxh-route-daemon).WaitForStatus([System.ServiceProcess.ServiceControllerStatus]::Stopped, [TimeSpan]::FromSeconds(10)) }"'
   Pop $1
   ${if} $1 != 0
     Abort "$(stopServiceFailed)"
@@ -1826,7 +1826,7 @@ FunctionEnd
   StrCpy $applicationDataDirectory ""
   StrCpy $installationID ""
   SetShellVarContext all
-  StrCpy $daemonDataDirectory "$APPDATA\sing-box-custom-daemon"
+  StrCpy $daemonDataDirectory "$APPDATA\mxh-route-daemon"
   StrCpy $0 0
   ReadRegDWORD $0 HKLM "${INSTALLATION_LAYOUT_REGISTRY_KEY}" "LayoutVersion"
   ${if} $0 == 2
@@ -1866,7 +1866,7 @@ FunctionEnd
       ${endif}
       ${if} $applicationDataDirectory == ""
         SetShellVarContext current
-        RMDir /r "$APPDATA\sing-box-custom"
+        RMDir /r "$APPDATA\mxh-route"
         SetShellVarContext all
       ${endif}
       !insertmacro setInstallationLayoutRegistryView

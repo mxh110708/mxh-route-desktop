@@ -21,7 +21,7 @@ function Initialize-TransitionStateStorage() {
         [Environment+SpecialFolder]::CommonApplicationData
     )
     $expectedPath = Join-Path `
-        (Join-Path $commonApplicationData "sing-box-installer") `
+        (Join-Path $commonApplicationData "mxh-route-installer") `
         "data-transition.json"
     if (-not [System.IO.Path]::GetFullPath($StatePath).Equals(
             [System.IO.Path]::GetFullPath($expectedPath),
@@ -266,8 +266,8 @@ function Get-WindowsProfiles() {
         $profilePath = [Environment]::ExpandEnvironmentVariables($profileImagePath)
         $profiles[$profileKey.PSChildName] = [PSCustomObject]@{
             UserID = $profileKey.PSChildName
-            DataPath = Join-Path $profilePath "AppData\Roaming\sing-box"
-            LegacyDataPath = Join-Path $profilePath "AppData\Roaming\sing-box-for-desktop"
+            DataPath = Join-Path $profilePath "AppData\Roaming\mxh-route"
+            LegacyDataPath = Join-Path $profilePath "AppData\Roaming\mxh-route-legacy"
         }
     }
     return $profiles
@@ -297,7 +297,7 @@ function Read-ApplicationDataDirectoryID([string]$Path) {
     try {
         return [string](Get-Content `
             -LiteralPath $directory `
-            -Stream "sing-box.installation-id" `
+            -Stream "mxh-route.installation-id" `
             -Raw `
             -ErrorAction Stop)
     } catch [System.IO.FileNotFoundException] {

@@ -1,24 +1,30 @@
-# sing-box-for-desktop
+# MXH Route
 
-Experimental Windows client for sing-box, the universal proxy platform.
+MXH Route is a personal Windows routing client derived from the upstream
+[`SagerNet/sing-box-for-desktop`](https://github.com/SagerNet/sing-box-for-desktop)
+project. It is independently named and is not an official SagerNet release.
 
-Linux support is on the way.
+The maintained personal changes add:
 
-## License
+- Rule, Global, and Direct routing controls on Overview.
+- System Proxy and TUN traffic-capture controls on Overview.
+- A parallel Windows installation that does not take over the official
+  desktop client's service, registry key, IPC pipe, or data directories.
+- A public personal Release channel with exact asset-name, repository-path,
+  version, and signer checks.
 
-```
-Copyright (C) 2022 by nekohasekai <contact-sagernet@sekai.icu>
+See [CUSTOM.md](CUSTOM.md) for upstream synchronization, local signed builds,
+security boundaries, and release maintenance.
 
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+## Security
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+This repository and its CI contain no proxy profiles, VPS archives, passwords,
+tokens, private keys, or code-signing material. Signed releases are produced
+locally. The public application update channel does not embed a GitHub token.
 
-You should have received a copy of the GNU General Public License
-along with this program. If not, see <http://www.gnu.org/licenses/>.
-```
+## Upstream and license
+
+The desktop, dashboard, and core source retain their upstream copyright and
+license notices. See [LICENSE](LICENSE). The application name MXH Route is used
+to comply with the upstream requirement that derivative works not use the
+original application's name or imply official association without consent.

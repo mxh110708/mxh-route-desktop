@@ -1,0 +1,43 @@
+name: Custom checks
+
+on:
+  push:
+    branches: [custom-main]
+  pull_request:
+    branches: [custom-main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Initialize dashboard source
+        shell: pwsh
+        run: |
+          $dashboardCommit = git ls-tree HEAD dashboard | ForEach-Object { ($_ -split '\s+')[2] }
+          git clone https://github.com/mxh110708/mxh-route-dashboard.git dashboard
+          git -C dashboard checkout $dashboardCommit
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26.5.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -C dashboard install --frozen-lockfile
+      - run: pnpm test:update-source
+      - run: pnpm test:runtime-config
+      - run: pnpm typecheck
+      - run: pnpm -C dashboard test -- --run
+      - run: pnpm -C dashboard lint
+      - run: pnpm -C dashboard lint:css
+
+      # The isolation test also reads the sibling custom core checkout, so it
+      # runs locally before every signed package instead of in this test-only CI.

@@ -1,14 +1,15 @@
 extends: electron-builder.yml
-productName: sing-box Custom
+productName: MXH Route
 fileAssociations: []
 win:
-  appId: io.nekohasekai.sfw.custom
+  appId: io.mxh.route
   forceCodeSigning: true
-  artifactName: sing-box-Custom-${version}-windows-x64.${ext}
+  artifactName: MXH-Route-${version}-windows-x64.${ext}
 nsis:
-  artifactName: sing-box-Custom-${version}-windows-x64.${ext}
+  artifactName: MXH-Route-${version}-windows-x64.${ext}
 directories:
   output: release-custom-installer
 extraMetadata:
-  name: sing-box-custom
-  version: 1.14.0-beta.14-custom.1
+  name: mxh-route
+  description: Personal Windows routing client based on an upstream universal proxy platform.
+  homepage: https://github.com/mxh110708/mxh-route-desktop

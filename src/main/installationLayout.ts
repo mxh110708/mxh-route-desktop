@@ -9,7 +9,7 @@ export interface WindowsInstallationLayout {
   daemonDataDirectory: string;
 }
 
-const installationRegistryPath = String.raw`SOFTWARE\SagerNet\sing-box-custom`;
+const installationRegistryPath = String.raw`SOFTWARE\MXH\Route`;
 
 const installationLayoutScript = String.raw`
 $ErrorActionPreference = "Stop"
@@ -19,7 +19,7 @@ $applicationDataDirectory = $env:sing_box_default_application_data_directory
 $commonApplicationData = [Environment]::GetFolderPath(
   [Environment+SpecialFolder]::CommonApplicationData
 )
-$daemonDataDirectory = Join-Path $commonApplicationData "sing-box-custom-daemon"
+$daemonDataDirectory = Join-Path $commonApplicationData "mxh-route-daemon"
 
 $registryView = if ([Environment]::Is64BitOperatingSystem) {
   [Microsoft.Win32.RegistryView]::Registry64
@@ -37,7 +37,7 @@ try {
       $layoutVersion = $installationKey.GetValue("LayoutVersion", $null)
       if ($null -ne $layoutVersion) {
         if ([int]$layoutVersion -ne 2) {
-          throw "Unsupported sing-box installation layout version: $layoutVersion"
+          throw "Unsupported MXH Route installation layout version: $layoutVersion"
         }
         $configuredApplicationDataDirectory = $installationKey.GetValue(
           "ApplicationDataDirectory",
@@ -52,7 +52,7 @@ try {
         if ($configuredApplicationDataDirectory -isnot [string] -or
             $configuredDaemonDataDirectory -isnot [string] -or
             [string]::IsNullOrWhiteSpace($configuredDaemonDataDirectory)) {
-          throw "The sing-box installation layout is invalid."
+          throw "The MXH Route installation layout is invalid."
         }
         if (-not [string]::IsNullOrWhiteSpace($configuredApplicationDataDirectory)) {
           $applicationDataDirectory = $configuredApplicationDataDirectory
@@ -92,7 +92,7 @@ export function readWindowsInstallationLayout(
     "v1.0",
     "powershell.exe",
   );
-  const temporaryDirectory = mkdtempSync(join(tmpdir(), "sing-box-installation-layout-"));
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "mxh-route-installation-layout-"));
   const outputPath = join(temporaryDirectory, "layout.json");
   try {
     const result = spawnSync(
