@@ -71,7 +71,7 @@ test("the custom package does not claim official profile associations or update 
   assert.match(builder, /fileAssociations: \[\]/u);
   assert.match(
     index,
-    /if \(!__CUSTOM_BUILD__\) \{\s*app\.setAsDefaultProtocolClient\("sing-box"\);\s*\}/u,
+    /if \(!__CUSTOM_BUILD__\) \{[\s\S]*?app\.setAsDefaultProtocolClient\("sing-box"\);[\s\S]*?app\.on\("second-instance"/u,
   );
   assert.match(index, /title: __CUSTOM_BUILD__ \? "MXH Route" : "sing-box"/u);
   assert.match(tray, /APPLICATION_LABEL = __CUSTOM_BUILD__ \? "MXH Route" : "sing-box"/u);
@@ -106,10 +106,13 @@ test("the custom package does not claim official profile associations or update 
   const dashboardApp = source("dashboard/src/App.tsx");
   const dashboardTray = source("dashboard/src/TrayMenu.tsx");
   const dashboardSettings = source("dashboard/src/views/SettingsView.tsx");
+  const dashboardTaildrop = source("dashboard/src/views/TaildropView.tsx");
   assert.ok(dashboardApp.includes("className={styles.mobileTopbarBrand}>MXH Route</div>"));
   assert.ok(dashboardTray.includes("className={styles.title}>MXH Route</span>"));
   assert.match(dashboardSettings, /github\.com\/mxh110708\/mxh-route-desktop/u);
   assert.match(dashboardSettings, /github\.com\/mxh110708\/mxh-route-dashboard/u);
+  assert.match(dashboardTaildrop, /The MXH Route service is not running/u);
+  assert.doesNotMatch(dashboardTaildrop, /The sing-box service is not running/u);
 });
 
 test("desktop and daemon identities are parallel to the official installation", () => {
@@ -134,7 +137,6 @@ test("desktop and daemon identities are parallel to the official installation", 
 
 test("the custom daemon exposes single-item selector groups", () => {
   const startedService = coreSource("daemon/started_service.go");
-  assert.match(startedService, /if !shouldDisplayGroup\(g\.Items\) \{/u);
-  assert.match(startedService, /return len\(items\) != 0/u);
+  assert.match(startedService, /if len\(g\.Items\) == 0 \{/u);
   assert.doesNotMatch(startedService, /if len\(g\.Items\) < 2 \{/u);
 });
