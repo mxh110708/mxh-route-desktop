@@ -1,7 +1,8 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$Version,
-    [string]$Proxy = "http://127.0.0.1:7897"
+    [string]$BaseVersion = "",
+    [string]$Proxy = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -11,7 +12,11 @@ $coreRoot = Resolve-Path (Join-Path $desktopRoot "..\sing-box")
 
 function Invoke-Git {
     param([string]$WorkingDirectory, [string[]]$Arguments)
-    & git -C $WorkingDirectory -c "http.proxy=$Proxy" @Arguments
+    $proxyArguments = @()
+    if (-not [string]::IsNullOrWhiteSpace($Proxy)) {
+        $proxyArguments = @("-c", "http.proxy=$Proxy")
+    }
+    & git -C $WorkingDirectory @proxyArguments @Arguments
     if ($LASTEXITCODE -ne 0) {
         throw "git failed in $WorkingDirectory"
     }
@@ -26,14 +31,21 @@ foreach ($workingDirectory in @($desktopRoot, $dashboardRoot, $coreRoot)) {
 
 Invoke-Git $dashboardRoot @("fetch", "upstream", "main", "--prune")
 Invoke-Git $desktopRoot @("-c", "fetch.recurseSubmodules=false", "fetch", "upstream", "main", "--prune")
-Invoke-Git $coreRoot @("fetch", "--no-tags", "upstream", "refs/tags/v$Version:refs/tags/v$Version")
+Invoke-Git $coreRoot @("fetch", "--no-tags", "upstream", "refs/tags/v${Version}:refs/tags/v${Version}")
+if (-not [string]::IsNullOrWhiteSpace($BaseVersion)) {
+    Invoke-Git $coreRoot @("fetch", "--no-tags", "upstream", "refs/tags/v${BaseVersion}:refs/tags/v${BaseVersion}")
+}
 
 Invoke-Git $desktopRoot @("switch", "--no-recurse-submodules", "custom-main")
 Invoke-Git $desktopRoot @("rebase", "upstream/main")
 Invoke-Git $dashboardRoot @("switch", "custom-main")
 Invoke-Git $dashboardRoot @("rebase", "upstream/main")
 Invoke-Git $coreRoot @("switch", "custom-main")
-Invoke-Git $coreRoot @("rebase", "v$Version")
+if ([string]::IsNullOrWhiteSpace($BaseVersion)) {
+    Invoke-Git $coreRoot @("rebase", "v$Version")
+} else {
+    Invoke-Git $coreRoot @("rebase", "--onto", "v$Version", "v$BaseVersion", "custom-main")
+}
 
 Invoke-Git $desktopRoot @("add", "dashboard")
 $dashboardPointerChanged = & git -C $desktopRoot diff --cached --quiet -- dashboard

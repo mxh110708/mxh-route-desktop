@@ -49,6 +49,15 @@ submodule pointer, and stops on any conflict. Because rebasing rewrites the
 personal branches, publish only with `--force-with-lease`, and only after the
 tests and signed local package succeed.
 
+When moving from a prerelease line to a stable tag whose history is not a
+direct descendant, pass the old core tag explicitly, for example:
+
+`scripts/sync-upstream.ps1 -Version 1.14.0 -BaseVersion 1.14.0-beta.14`
+
+This replays only the custom core commits instead of treating intervening
+upstream development commits as local changes. The proxy is optional; pass
+`-Proxy http://127.0.0.1:PORT` only when a local proxy is actually listening.
+
 ## Update channel
 
 Custom builds check only public Releases from
