@@ -91,6 +91,7 @@ Push-Location $repositoryRoot
 try {
     Invoke-Pnpm test:update-source
     Invoke-Pnpm test:runtime-config
+    Invoke-Pnpm test:rpc-limits
     Invoke-Pnpm test:system-proxy-recovery
     Invoke-Pnpm test:custom-isolation
     Invoke-Pnpm test:installer-preflight

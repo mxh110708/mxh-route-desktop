@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { ApplicationService } from "../shared/gen/experimental/boxdd/desktop_service_pb";
 import { localeInterceptor } from "./locale";
 import { daemonBinaryPath } from "./repair";
+import { rpcMessageLimits } from "./rpcLimits";
 
 // A plain stdio transport (HTTP/2 over the child's standard streams) was
 // rejected: Node wraps a non-socket duplex in JSStreamSocket, which delivers
@@ -101,6 +102,7 @@ function spawnWorker(): Promise<WorkerProcess> {
         child,
         exitError,
         applicationTransport: createGrpcTransport({
+          ...rpcMessageLimits,
           baseUrl: "http://sing-box-worker",
           interceptors: [localeInterceptor],
           nodeOptions: {
@@ -111,6 +113,7 @@ function spawnWorker(): Promise<WorkerProcess> {
           daemonRelayEndpoint === null
             ? null
             : createGrpcTransport({
+                ...rpcMessageLimits,
                 baseUrl: "http://sing-box",
                 interceptors: [localeInterceptor],
                 nodeOptions: {

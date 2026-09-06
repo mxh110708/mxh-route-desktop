@@ -10,6 +10,7 @@ import { DesktopService } from "../shared/gen/experimental/boxdd/desktop_service
 import { developmentSwitchValue } from "./development";
 import { localeInterceptor } from "./locale";
 import { daemonWorkerTransport } from "./worker";
+import { rpcMessageLimits } from "./rpcLimits";
 
 let daemonTransport: Transport | null;
 if (process.platform === "win32" && app.isPackaged) {
@@ -26,6 +27,7 @@ if (process.platform === "win32" && app.isPackaged) {
     daemonTransport = null;
   } else {
     daemonTransport = createGrpcTransport({
+      ...rpcMessageLimits,
       baseUrl: "http://sing-box",
       interceptors: [localeInterceptor],
       nodeOptions: {

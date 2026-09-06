@@ -1,4 +1,5 @@
 import { ConnectError } from "@connectrpc/connect";
+import { assertConfigRpcSize } from "./rpcLimits";
 import { BrowserWindow, app, dialog, ipcMain } from "electron";
 import {
   appendFile,
@@ -201,6 +202,7 @@ function notifyChanged() {
 }
 
 async function checkConfig(content: string): Promise<void> {
+  assertConfigRpcSize(content);
   await applicationService.checkConfig({ content });
 }
 

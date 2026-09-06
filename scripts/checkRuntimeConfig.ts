@@ -6,7 +6,7 @@ import { join } from "node:path";
 
 import { buildRuntimeConfig, type CaptureMode } from "../src/main/runtimeConfig";
 
-const GRPC_LIMIT_BYTES = 4 * 1024 * 1024;
+import { RPC_MAX_MESSAGE_BYTES, assertConfigRpcSize } from "../src/main/rpcLimits";
 const CHECK_TIMEOUT_MILLISECONDS = 60_000;
 
 function sanitizeDiagnostic(value: string): string {
@@ -33,6 +33,7 @@ async function main(): Promise<void> {
   }
 
   const source = await readFile(configPath, "utf8");
+  assertConfigRpcSize(source);
   const temporaryDirectory = await mkdtemp(join(tmpdir(), "sing-box-runtime-check-"));
   const results: Array<{ mode: CaptureMode; bytes: number; underGrpcLimit: boolean }> = [];
 
@@ -40,7 +41,8 @@ async function main(): Promise<void> {
     for (const mode of ["system-proxy", "tun"] as const) {
       const runtime = buildRuntimeConfig(source, mode);
       const bytes = Buffer.byteLength(runtime);
-      const underGrpcLimit = bytes < GRPC_LIMIT_BYTES;
+      assertConfigRpcSize(runtime);
+      const underGrpcLimit = bytes < RPC_MAX_MESSAGE_BYTES;
       if (!underGrpcLimit) {
         throw new Error(`runtime configuration exceeds the desktop IPC limit in ${mode} mode`);
       }
