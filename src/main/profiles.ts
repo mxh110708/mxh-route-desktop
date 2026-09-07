@@ -1,6 +1,7 @@
 import { ConnectError } from "@connectrpc/connect";
 import { assertConfigRpcSize } from "./rpcLimits";
-import { BrowserWindow, app, dialog, ipcMain } from "electron";
+import { BrowserWindow, app, dialog, ipcMain, net } from "electron";
+import { PublicRuleCache, portablePublicRules } from "./publicRules";
 import {
   appendFile,
   copyFile,
@@ -73,6 +74,7 @@ function contentPath(id: string): string {
 }
 
 async function atomicWriteFile(path: string, content: string): Promise<void> {
+  content = portablePublicRules(content);
   await mkdir(profilesDirectory(), { recursive: true });
   const temporaryPath = `${path}.${crypto.randomUUID()}.tmp`;
   try {
@@ -203,7 +205,15 @@ function notifyChanged() {
 
 async function checkConfig(content: string): Promise<void> {
   assertConfigRpcSize(content);
+  content = await preparePublicRules(content);
   await applicationService.checkConfig({ content });
+}
+
+let publicRuleCache: PublicRuleCache | undefined;
+function preparePublicRules(content: string): Promise<string> {
+  publicRuleCache ??= new PublicRuleCache(join(app.getPath("userData"), "public-rule-cache"),
+    ((url, options) => net.fetch(url instanceof URL ? url.toString() : url, options)) as typeof fetch);
+  return publicRuleCache.prepare(content);
 }
 
 async function readLimitedResponse(
@@ -353,7 +363,7 @@ async function encodeProfileData(id: string): Promise<Uint8Array> {
   const encoded = await applicationService.encodeProfile({
     type: remote ? ProfileContent_Type.REMOTE : ProfileContent_Type.LOCAL,
     name: profile.name,
-    config: await readFile(contentPath(id), "utf-8"),
+    config: portablePublicRules(await readFile(contentPath(id), "utf-8")),
     remotePath: remote ? profile.remoteUrl : undefined,
     autoUpdate: remote ? profile.autoUpdate : false,
     autoUpdateInterval: remote ? profile.autoUpdateIntervalMinutes : 0,
@@ -388,7 +398,7 @@ async function startServiceWithContent(
   if (desktopService === null || managedService === null) {
     throw new Error("daemon is not available");
   }
-  const runtimeContent = buildRuntimeConfig(content, captureMode);
+  const runtimeContent = buildRuntimeConfig(await preparePublicRules(content), captureMode);
   await desktopService.startService({
     configContent: runtimeContent,
     options: await serviceStartOptions(),
@@ -865,7 +875,7 @@ const handlers: Record<
     if (result.canceled || !result.filePath) {
       return false;
     }
-    await copyFile(contentPath(id), result.filePath);
+    await writeFile(result.filePath, portablePublicRules(await readFile(contentPath(id), "utf-8")));
     return true;
   },
 
