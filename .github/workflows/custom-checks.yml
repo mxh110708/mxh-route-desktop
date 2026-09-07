@@ -43,6 +43,7 @@ jobs:
       - run: pnpm test:update-source
       - run: pnpm test:runtime-config
       - run: pnpm test:rpc-limits
+      - run: pnpm test:public-rules
       - run: pnpm test:system-proxy-recovery
       - run: pnpm test:installer-preflight
       - run: pnpm typecheck
