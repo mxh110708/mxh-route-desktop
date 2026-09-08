@@ -3,7 +3,6 @@ import { assertConfigRpcSize } from "./rpcLimits";
 import { BrowserWindow, app, dialog, ipcMain, net } from "electron";
 import { PublicRuleCache, portablePublicRules } from "./publicRules";
 import {
-  appendFile,
   copyFile,
   mkdir,
   readFile,
@@ -12,6 +11,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { basename, join } from "node:path";
+import { networkInterfaces } from "node:os";
 
 import { ServiceStatus_Type } from "../shared/gen/daemon/started_service_pb";
 import { ProfileContent_Type } from "../shared/gen/experimental/boxdd/desktop_service_pb";
@@ -37,10 +37,12 @@ import { serviceStartOptions } from "./settings";
 import { userAgent } from "./userAgent";
 import { applicationService } from "./worker";
 import { daemonState } from "./state";
+import { HealthLog } from "./healthLog";
 import {
   ConsecutiveFailureRecovery,
   nextSystemProxyProbeDelay,
   probeSystemProxy,
+  classifyProxyQuality,
 } from "./systemProxyRecovery";
 
 const MINIMUM_UPDATE_INTERVAL_MINUTES = 15;
@@ -394,16 +396,22 @@ function runServiceOperation<Result>(operation: () => Promise<Result>): Promise<
 async function startServiceWithContent(
   content: string,
   captureMode = captureModePreference.get(),
+  reason = "user-or-profile-change",
 ): Promise<void> {
   if (desktopService === null || managedService === null) {
     throw new Error("daemon is not available");
   }
-  const runtimeContent = buildRuntimeConfig(await preparePublicRules(content), captureMode);
-  await desktopService.startService({
-    configContent: runtimeContent,
-    options: await serviceStartOptions(),
-  });
-  await managedService.setSystemProxyEnabled({ enabled: captureMode === "system-proxy" });
+  recordSystemProxyHealth("service-start-requested", { captureMode, reason });
+  try {
+    const runtimeContent = buildRuntimeConfig(await preparePublicRules(content), captureMode);
+    await desktopService.startService({ configContent: runtimeContent, options: await serviceStartOptions() });
+    await managedService.setSystemProxyEnabled({ enabled: captureMode === "system-proxy" });
+    if (reason !== "health-recovery") systemProxyRecovery.reset();
+    recordSystemProxyHealth("service-start-completed", { captureMode, reason });
+  } catch (error) {
+    recordSystemProxyHealth("service-start-failed", { captureMode, reason, error: systemProxyHealthError(error) });
+    throw error;
+  }
 }
 
 function systemProxyHealthError(error: unknown): string {
@@ -411,12 +419,14 @@ function systemProxyHealthError(error: unknown): string {
   return message.replace(/[\r\n]+/gu, " ").slice(0, 512);
 }
 
+let healthLog: HealthLog | undefined;
+let serviceEpoch = 0;
 function recordSystemProxyHealth(
   event: string,
   details: Record<string, unknown> = {},
 ): void {
-  const line = `${JSON.stringify({ timestamp: new Date().toISOString(), event, ...details })}\n`;
-  void appendFile(join(app.getPath("userData"), "system-proxy-health.log"), line).catch(
+  healthLog ??= new HealthLog(join(app.getPath("userData"), "system-proxy-health.log"));
+  void healthLog.write(event, details).catch(
     (error) => console.error("write system proxy health log:", error),
   );
 }
@@ -432,11 +442,13 @@ async function runSystemProxyHealthCheck(): Promise<number> {
       daemonState.status !== ServiceStatus_Type.STARTED
     ) {
       systemProxyRecovery.reset();
+      recordSystemProxyHealth("check-skipped", { captureMode: captureModePreference.get(), serviceStatus: daemonState.status });
       return SYSTEM_PROXY_HEALTH_NORMAL_INTERVAL_MILLISECONDS;
     }
     const selectedId = selectedProfileId();
     if (selectedId === null) {
       systemProxyRecovery.reset();
+      recordSystemProxyHealth("check-skipped", { reason: "no-selected-profile" });
       return SYSTEM_PROXY_HEALTH_NORMAL_INTERVAL_MILLISECONDS;
     }
     if (startedService !== null) {
@@ -446,45 +458,50 @@ async function runSystemProxyHealthCheck(): Promise<number> {
       );
       if (clashMode.currentMode.toLowerCase() === "direct") {
         systemProxyRecovery.reset();
+        recordSystemProxyHealth("check-skipped", { reason: "direct-mode" });
         return SYSTEM_PROXY_HEALTH_NORMAL_INTERVAL_MILLISECONDS;
       }
     }
     const content = await readFile(contentPath(selectedId), "utf-8");
     const endpoint = readSystemProxyEndpoint(content);
-    try {
-      await probeSystemProxy(endpoint, {
-        timeoutMs: SYSTEM_PROXY_HEALTH_TIMEOUT_MILLISECONDS,
-      });
-      const recovered =
-        systemProxyRecovery.consecutiveFailures > 0 ||
-        !systemProxyRecovery.recoveryArmed;
-      systemProxyRecovery.recordSuccess();
-      if (recovered) {
-        recordSystemProxyHealth("healthy");
-      }
+    const probeEpoch = serviceEpoch;
+    const probes = await Promise.allSettled([
+      probeSystemProxy(endpoint, { timeoutMs: SYSTEM_PROXY_HEALTH_TIMEOUT_MILLISECONDS }),
+      probeSystemProxy(endpoint, { targetHost: "www.cloudflare.com", path: "/cdn-cgi/trace", timeoutMs: SYSTEM_PROXY_HEALTH_TIMEOUT_MILLISECONDS }),
+      probeSystemProxy(endpoint, { targetHost: "chatgpt.com", path: "/", timeoutMs: SYSTEM_PROXY_HEALTH_TIMEOUT_MILLISECONDS }),
+    ]);
+    // Do not restart a different profile/mode if the user changed it during the probes.
+    if (serviceEpoch !== probeEpoch || selectedProfileId() !== selectedId || captureModePreference.get() !== "system-proxy" || daemonState.status !== ServiceStatus_Type.STARTED) {
+      recordSystemProxyHealth("check-discarded", { reason: "state-changed" });
       return SYSTEM_PROXY_HEALTH_NORMAL_INTERVAL_MILLISECONDS;
-    } catch (error) {
-      const wasArmed = systemProxyRecovery.recoveryArmed;
-      const shouldRecover = systemProxyRecovery.recordFailure();
-      if (wasArmed) {
-        recordSystemProxyHealth("probe-failed", {
-          failures: systemProxyRecovery.consecutiveFailures,
-          error: systemProxyHealthError(error),
-        });
-      }
-      if (!shouldRecover) {
-        return nextSystemProxyProbeDelay(
-          systemProxyRecovery,
-          SYSTEM_PROXY_HEALTH_NORMAL_INTERVAL_MILLISECONDS,
-          SYSTEM_PROXY_HEALTH_RETRY_INTERVAL_MILLISECONDS,
-        );
-      }
+    }
+    const quality = classifyProxyQuality(probes);
+    recordSystemProxyHealth("quality-sample", {
+      ...quality,
+      activeInterfaceCount: Object.values(networkInterfaces()).filter(v => v?.some(a => !a.internal)).length,
+      samples: probes.map((r, i) => r.status === "fulfilled" ? r.value : { target: ["www.gstatic.com", "www.cloudflare.com", "chatgpt.com"][i], error: systemProxyHealthError(r.reason) }),
+    });
+    if (!quality.recoverable) {
+      systemProxyRecovery.recordSuccess();
+      return SYSTEM_PROXY_HEALTH_NORMAL_INTERVAL_MILLISECONDS;
+    }
+    if (!systemProxyRecovery.recordFailure()) {
+      recordSystemProxyHealth("recovery-deferred", { failures: systemProxyRecovery.consecutiveFailures, armed: systemProxyRecovery.recoveryArmed });
+      return nextSystemProxyProbeDelay(systemProxyRecovery, SYSTEM_PROXY_HEALTH_NORMAL_INTERVAL_MILLISECONDS, SYSTEM_PROXY_HEALTH_RETRY_INTERVAL_MILLISECONDS);
     }
 
     recordSystemProxyHealth("automatic-reload-started");
     try {
-      await runServiceOperation(() => startServiceWithContent(content, "system-proxy"));
-      recordSystemProxyHealth("automatic-reload-completed");
+      await runServiceOperation(async () => {
+        if (serviceEpoch !== probeEpoch || selectedProfileId() !== selectedId || captureModePreference.get() !== "system-proxy" || daemonState.status !== ServiceStatus_Type.STARTED || await readFile(contentPath(selectedId), "utf-8") !== content) {
+          recordSystemProxyHealth("automatic-reload-skipped", { reason: "state-changed" }); return;
+        }
+        if (startedService !== null && (await startedService.getClashModeStatus({}, { timeoutMs: SYSTEM_PROXY_CONTROL_TIMEOUT_MILLISECONDS })).currentMode.toLowerCase() === "direct") {
+          recordSystemProxyHealth("automatic-reload-skipped", { reason: "direct-mode" }); return;
+        }
+        await startServiceWithContent(content, "system-proxy", "health-recovery");
+        recordSystemProxyHealth("automatic-reload-completed");
+      });
     } catch (error) {
       recordSystemProxyHealth("automatic-reload-failed", {
         error: systemProxyHealthError(error),
@@ -513,7 +530,13 @@ function scheduleSystemProxyHealthCheck(delayMs: number): void {
 }
 
 function startSystemProxyHealthMonitor(): void {
-  scheduleSystemProxyHealthCheck(SYSTEM_PROXY_HEALTH_NORMAL_INTERVAL_MILLISECONDS);
+  recordSystemProxyHealth("monitor-started", { version: app.getVersion(), startedAtLogin: process.argv.includes("--start-at-login"), captureMode: captureModePreference.get(), probe: "tls-https", slowThresholdMs: 5_000 });
+  let previous = "";
+  daemonState.on("change", () => {
+    const current = JSON.stringify({ connection: daemonState.connection.phase, status: daemonState.status });
+    if (previous !== current) { previous = current; serviceEpoch++; recordSystemProxyHealth("daemon-state", JSON.parse(current)); }
+  });
+  scheduleSystemProxyHealthCheck(SYSTEM_PROXY_HEALTH_RETRY_INTERVAL_MILLISECONDS);
 }
 
 async function reloadIfSelectedAndRunning(id: string): Promise<void> {
