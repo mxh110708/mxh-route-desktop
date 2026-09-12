@@ -44,7 +44,7 @@
     "test:runtime-config": "tsx --test src/main/runtimeConfig.test.ts",
     "test:rpc-limits": "tsx --test src/main/rpcLimits.test.ts",
     "test:public-rules": "tsx --test src/main/publicRules.test.ts",
-    "test:system-proxy-recovery": "tsx --test src/main/systemProxyRecovery.test.ts",
+    "test:system-proxy-recovery": "tsx --test src/main/systemProxyRecovery.test.ts src/main/priorityFailover.test.ts",
     "test:update-source": "tsx --test src/main/updateSource.test.ts",
     "test:installer-preflight": "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/test-installer-preflight.ps1",
     "typecheck": "tsc -b"
