@@ -1,5 +1,17 @@
 # System proxy quality monitoring
 
+## mxh.7: configuration-driven policy
+
+Provider-name ranking has been removed. The application data directory's
+`priority-failover.json` controls enabled state, selector name, optional explicit
+node order, failure/recovery thresholds and probe intervals. Empty `order` uses
+the selector's configured concrete-node order. Changes apply on proxy restart or
+profile reload; mismatched old runtime caches are not reused. Existing settings
+are never overwritten by defaults. See [configuration guide](PRIORITY-FAILOVER.zh-CN.md).
+
+The mxh.6 fixed-provider behavior described below is historical, not the current
+ordering policy. Its log retention and independent-probe design still apply.
+
 ## mxh.6: priority failover and retained logs
 
 `US-West Entry` uses a fixed provider priority: DMIT, then VMISS, then MoeCloud.

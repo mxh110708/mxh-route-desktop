@@ -201,6 +201,9 @@ export function createDesktopHost(): DesktopHost {
       triggerOOMReport: () => desktopApi.triggerOOMReport(),
     },
     profiles: {
+      priorityState: () => bridge.profiles.priorityState(),
+      prioritySave: (settings, revision, profileId) => bridge.profiles.prioritySave(settings, revision, profileId),
+      priorityApply: (revision, profileId) => bridge.profiles.priorityApply(revision, profileId),
       list: () => bridge.profiles.list(),
       onChanged: (listener) => bridge.profiles.onChanged(listener),
       create: async (init) => {

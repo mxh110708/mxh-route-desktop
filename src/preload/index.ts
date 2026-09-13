@@ -176,7 +176,10 @@ const bridge: DesktopBridge = {
     powerRemoveAll: () => callReports("powerRemoveAll"),
     triggerAppCrash: (type) => callReports("triggerAppCrash", type),
   },
-  profiles: {
+    profiles: {
+      priorityState: () => callProfiles("priorityState"),
+      prioritySave: (settings, revision, profileId) => callProfiles("prioritySave", settings, revision, profileId),
+      priorityApply: (revision, profileId) => callProfiles("priorityApply", revision, profileId),
     list: () => callProfiles("list"),
     create: (init) => callProfiles("create", init),
     updateMetadata: (id, patch) => callProfiles("updateMetadata", id, patch),

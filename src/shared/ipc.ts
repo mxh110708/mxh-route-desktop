@@ -154,7 +154,25 @@ export interface ProfileMetadataPatch {
   autoUpdateIntervalMinutes?: number;
 }
 
+export interface PriorityPanelState {
+  settings: import("./priority").PrioritySettings;
+  revision: string;
+  profileId: string | null;
+  groups: { tag: string; nodes: string[] }[];
+  path: string;
+  running: boolean;
+  directMode: boolean;
+  active: boolean;
+  paused: boolean;
+  needsReload: boolean;
+  selected: string | null;
+  lastSwitch: { from: string; to: string; at: string; reason: string } | null;
+}
+
 export interface ProfilesBridge {
+  priorityState(): Promise<PriorityPanelState>;
+  prioritySave(settings: PriorityPanelState["settings"], revision: string, profileId: string | null): Promise<PriorityPanelState>;
+  priorityApply(revision: string, profileId: string | null): Promise<void>;
   list(): Promise<ProfilesState>;
   create(init: ProfileCreate): Promise<ProfileMetadata>;
   updateMetadata(id: string, patch: ProfileMetadataPatch): Promise<void>;
