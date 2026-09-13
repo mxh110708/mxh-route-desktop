@@ -40,7 +40,7 @@ import { applicationService } from "./worker";
 import { daemonState } from "./state";
 import { HealthLog } from "./healthLog";
 import { CoreLogArchive } from "./coreLogArchive";
-import { PriorityFailover, addProbeRoutes, allocateProbePorts, priorityTags, type Candidate } from "./priorityFailover";
+import { PriorityFailover, addProbeRoutes, allocateProbePorts, priorityTags, priorityGroups, type Candidate } from "./priorityFailover";
 import { loadPrioritySettings, parsePrioritySettings, prioritySettingsSnapshot, savePrioritySettings } from "./prioritySettings";
 import type { PriorityPanelState } from "../shared/ipc";
 import {
@@ -402,9 +402,7 @@ async function priorityPanelState(): Promise<PriorityPanelState> {
   const profileId = selectedProfileId();
   const rawContent = profileId ? await readFile(contentPath(profileId), "utf8") : null;
   const content = rawContent ? buildRuntimeConfig(rawContent, captureModePreference.get()) : null;
-  const groups: PriorityPanelState["groups"] = content ? (JSON.parse(content).outbounds ?? [])
-    .filter((outbound: { type: string }) => outbound.type === "selector")
-    .map((outbound: { tag: string }) => ({ tag: outbound.tag, nodes: priorityTags(content, { ...snapshot.settings, enabled: true, group: outbound.tag, order: [] }) })) : [];
+  const groups = content ? priorityGroups(content) : [];
   const running = daemonState.status === ServiceStatus_Type.STARTED;
   const directMode = running && startedService !== null &&
     (await startedService.getClashModeStatus({}, { timeoutMs: 1000 }).catch(() => ({ currentMode: "" }))).currentMode.toLowerCase() === "direct";
@@ -880,7 +878,7 @@ const handlers: Record<
     if (settings.enabled) {
       const view = await priorityPanelState();
       const group = view.groups.find(item => item.tag === settings.group);
-      if (!group || !group.nodes.length) throw new Error("请选择当前配置中包含代理节点的 selector 分组。");
+      if (!group) throw new Error("请选择成员全部为实际代理节点的入口组；业务、汇总、直连及混合分组不能用于自动故障切换。");
       if (settings.order.some(tag => !group.nodes.includes(tag))) throw new Error("顺序包含不属于当前分组的代理节点，请刷新后重试。");
     }
     if (profileId !== selectedProfileId()) throw new Error("保存前当前配置发生变化，请刷新后重试。");

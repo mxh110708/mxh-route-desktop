@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { PriorityFailover, priorityTags, addProbeRoutes, allocateProbePorts } from "./priorityFailover";
+import { PriorityFailover, priorityGroups, priorityTags, addProbeRoutes, allocateProbePorts } from "./priorityFailover";
 import { redactCoreMessage, CoreLogArchive } from "./coreLogArchive";
 import { HealthLog } from "./healthLog";
 import { parsePrioritySettings, loadPrioritySettings, prioritySettingsSnapshot, savePrioritySettings } from "./prioritySettings";
@@ -10,6 +10,34 @@ import { join } from "node:path";
 
 const tags = ["DMIT-4", "DMIT-6", "VMISS-4", "MoeCloud-4"];
 const sample = (...good: string[]) => new Map(tags.map(t => [t, good.includes(t)]));
+test("entry discovery excludes business, aggregate, direct, mixed and malformed groups by structure", () => {
+  const config = { outbounds: [
+    { tag: "Renamed Proxy Pool", type: "selector", outbounds: ["one", "two"] },
+    { tag: "Single Proxy", type: "selector", outbounds: ["two"] },
+    { tag: "one", type: "vless" }, { tag: "two", type: "shadowsocks" },
+    { tag: "DIRECT", type: "direct" }, { tag: "deny", type: "block" },
+    { tag: "auto", type: "urltest", outbounds: ["one"] },
+    { tag: "dns", type: "dns" }, { tag: "broken" },
+    ...["Renamed Proxy Pool", "DIRECT", "deny", "auto", "dns", "missing", "broken"].map((tag, i) =>
+      ({ tag: `Excluded ${i}`, type: "selector", outbounds: ["one", tag] })),
+    { tag: "empty", type: "selector", outbounds: [] },
+    { tag: "invalid", type: "selector", outbounds: [42] },
+  ] };
+  const content = JSON.stringify(config);
+  assert.deepEqual(priorityGroups(content), [
+    { tag: "Renamed Proxy Pool", nodes: ["one", "two"] },
+    { tag: "Single Proxy", nodes: ["two"] },
+  ]);
+  assert.deepEqual(priorityTags(content), []); // no hardcoded initial selection
+  for (let i = 0; i < 7; i++) {
+    const settings = parsePrioritySettings({ group: `Excluded ${i}`, order: ["one"] });
+    assert.deepEqual(priorityTags(content, settings), []);
+    assert.deepEqual(addProbeRoutes(content, [], settings).candidates, []);
+  }
+  config.outbounds[0].tag = "Another Name";
+  assert.equal(priorityGroups(JSON.stringify(config))[0].tag, "Another Name");
+});
+
 test("ordered failure switching needs three bad rounds and a proven backup", () => {
   const p = new PriorityFailover(tags); p.observeSelection(tags[0]);
   assert.equal(p.record(sample(tags[2], tags[3]), 0), null);
@@ -52,12 +80,13 @@ test("sleep gaps do not count toward stable recovery", () => {
 });
 test("declared concrete members follow configuration order, not provider names", async () => {
   const cfg = { inbounds: [], route: { rules: [{ clash_mode: "Global", outbound: "US-West Entry" }] }, outbounds: [
-    { tag: "US-West Entry", type: "selector", outbounds: [tags[3], "DIRECT", tags[2], tags[0], tags[1]] },
+    { tag: "US-West Entry", type: "selector", outbounds: [tags[3], tags[2], tags[0], tags[1]] },
     ...tags.map(tag => ({ tag, type: "vless", server: "example.invalid", uuid: "unchanged" })), { tag: "DIRECT", type: "direct" }] };
   const content = JSON.stringify(cfg); const order = [tags[3], tags[2], tags[0], tags[1]];
-  assert.deepEqual(priorityTags(content), order);
+  const settings = parsePrioritySettings({ group: "US-West Entry" });
+  assert.deepEqual(priorityTags(content, settings), order);
   const ports = await allocateProbePorts(tags.length); assert.equal(new Set(ports).size, tags.length);
-  const runtime = JSON.parse(addProbeRoutes(content, ports).content);
+  const runtime = JSON.parse(addProbeRoutes(content, ports, settings).content);
   assert.deepEqual(runtime.outbounds, cfg.outbounds);
   assert.ok(runtime.inbounds.every((i: any) => i.listen === "127.0.0.1"));
   assert.deepEqual(runtime.route.rules.slice(0, tags.length).map((r: any) => r.outbound), order);
@@ -65,7 +94,7 @@ test("declared concrete members follow configuration order, not provider names",
   assert.equal(addProbeRoutes('{"outbounds":[]}', []).content, '{"outbounds":[]}');
 });
 test("arbitrary group and node names, explicit order, disable and invalid membership", () => {
-  const content = JSON.stringify({outbounds:[{tag:'My Entry',type:'selector',outbounds:['New Vendor','Other','DIRECT']},
+  const content = JSON.stringify({outbounds:[{tag:'My Entry',type:'selector',outbounds:['New Vendor','Other']},
     {tag:'New Vendor',type:'vless'},{tag:'Other',type:'shadowsocks'},{tag:'DIRECT',type:'direct'}]});
   const settings=parsePrioritySettings({group:'My Entry'});
   assert.deepEqual(priorityTags(content,settings),['New Vendor','Other']);
@@ -89,7 +118,7 @@ test("configured long failure intervals do not erase consecutive failure evidenc
   assert.equal(p.record(sample(tags[2]),300000),tags[2]);
 });
 test("settings validate types, bounds, duplicate tags and typo fields", () => {
-  for(const value of [null,[],{enabled:'true'},{group:''},{order:['a','a']},{failureRounds:0},
+  for(const value of [null,[],{enabled:'true'},{group:' '},{order:['a','a']},{failureRounds:0},
     {backupSuccessRounds:21},{recoveryStableMs:1},{failbackCooldownMs:Infinity},{failureRound:3},
     {probeTimeoutMs:0},{healthyIntervalMs:1000},{failureIntervalMs:600001}]) {
     assert.throws(()=>parsePrioritySettings(value));
@@ -99,7 +128,7 @@ test("first run creates editable settings and subsequent loads never overwrite t
   const dir=await mkdtemp(join(tmpdir(),'mxh-settings-test-'));
   try {
     const path=join(dir,'priority-failover.json');
-    const first=await loadPrioritySettings(path); assert.deepEqual(first.order,[]);
+    const first=await loadPrioritySettings(path); assert.deepEqual(first.order,[]); assert.equal(first.group,'');
     const {writeFile}=await import('node:fs/promises');
     await writeFile(path,JSON.stringify({group:'Custom Group',enabled:false}));
     assert.equal((await loadPrioritySettings(path)).group,'Custom Group');

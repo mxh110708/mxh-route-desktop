@@ -3,13 +3,23 @@ import { DEFAULT_PRIORITY_SETTINGS, type PrioritySettings } from "./prioritySett
 
 export interface Candidate { tag: string; port: number }
 
+/** Structural entry groups only: every member must resolve to a concrete proxy. */
+export function priorityGroups(content: string): { tag: string; nodes: string[] }[] {
+  const config = JSON.parse(content);
+  const outbounds = Array.isArray(config.outbounds) ? config.outbounds : [];
+  return outbounds.filter((group: any) => group.type === "selector" && typeof group.tag === "string" &&
+    Array.isArray(group.outbounds) && group.outbounds.length > 0 &&
+    group.outbounds.every((tag: unknown) => typeof tag === "string" &&
+      outbounds.some((node: any) => node.tag === tag && typeof node.type === "string" &&
+        !["direct", "block", "selector", "urltest", "dns"].includes(node.type))))
+    .map((group: any) => ({ tag: group.tag, nodes: [...new Set<string>(group.outbounds)] }));
+}
+
 export function priorityTags(content: string, settings: PrioritySettings = DEFAULT_PRIORITY_SETTINGS): string[] {
   if (!settings.enabled) return [];
-  const config = JSON.parse(content);
-  const group = config.outbounds?.find((v: any) => v.tag === settings.group && v.type === "selector");
-  if (!Array.isArray(group?.outbounds)) return [];
-  const available: string[] = [...new Set<string>(group.outbounds.filter((tag: unknown): tag is string => typeof tag === "string" &&
-    config.outbounds.some((v: any) => v.tag === tag && !["direct", "block", "selector", "urltest", "dns"].includes(v.type))))];
+  const group = priorityGroups(content).find(group => group.tag === settings.group);
+  if (!group) return [];
+  const available = group.nodes;
   if (!settings.order.length) return available;
   if (settings.order.some(tag => !available.includes(tag))) throw new Error("显式故障切换顺序包含不存在、不属于目标组或非代理节点的名称");
   return [...settings.order];
