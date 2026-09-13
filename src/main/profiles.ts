@@ -40,7 +40,9 @@ import { applicationService } from "./worker";
 import { daemonState } from "./state";
 import { HealthLog } from "./healthLog";
 import { CoreLogArchive } from "./coreLogArchive";
-import { ENTRY_GROUP, PriorityFailover, addProbeRoutes, allocateProbePorts, priorityTags, type Candidate } from "./priorityFailover";
+import { PriorityFailover, addProbeRoutes, allocateProbePorts, priorityTags, type Candidate } from "./priorityFailover";
+import { loadPrioritySettings, parsePrioritySettings, prioritySettingsSnapshot, savePrioritySettings } from "./prioritySettings";
+import type { PriorityPanelState } from "../shared/ipc";
 import {
   ConsecutiveFailureRecovery,
   nextSystemProxyProbeDelay,
@@ -392,12 +394,33 @@ let priorityLastResults: { at: number; reachable: Map<string, boolean> } | null 
 let priorityProfileHash = "";
 let restoringPriority = false;
 let priorityConfiguring = false;
+let priorityLastSwitch: PriorityPanelState["lastSwitch"] = null;
 function priorityCachePath(): string { return join(app.getPath("userData"), "priority-runtime.json"); }
+function prioritySettingsPath(): string { return join(app.getPath("userData"), "priority-failover.json"); }
+async function priorityPanelState(): Promise<PriorityPanelState> {
+  const snapshot = await prioritySettingsSnapshot(prioritySettingsPath());
+  const profileId = selectedProfileId();
+  const rawContent = profileId ? await readFile(contentPath(profileId), "utf8") : null;
+  const content = rawContent ? buildRuntimeConfig(rawContent, captureModePreference.get()) : null;
+  const groups: PriorityPanelState["groups"] = content ? (JSON.parse(content).outbounds ?? [])
+    .filter((outbound: { type: string }) => outbound.type === "selector")
+    .map((outbound: { tag: string }) => ({ tag: outbound.tag, nodes: priorityTags(content, { ...snapshot.settings, enabled: true, group: outbound.tag, order: [] }) })) : [];
+  const running = daemonState.status === ServiceStatus_Type.STARTED;
+  const directMode = running && startedService !== null &&
+    (await startedService.getClashModeStatus({}, { timeoutMs: 1000 }).catch(() => ({ currentMode: "" }))).currentMode.toLowerCase() === "direct";
+  return { ...snapshot, profileId, groups, path: prioritySettingsPath(), running, directMode,
+    active: running && !directMode && priorityCandidates.length > 0 && !!priorityPolicy?.settings.enabled,
+    paused: priorityPolicy?.paused ?? false,
+    needsReload: running && (JSON.stringify(priorityPolicy?.settings) !== JSON.stringify(snapshot.settings) ||
+      rawContent !== null && createHash("sha256").update(rawContent).digest("hex") !== priorityProfileHash),
+    selected: daemonState.groups.find(group => group.tag === (priorityPolicy?.settings.group ?? snapshot.settings.group))?.selected ?? null,
+    lastSwitch: priorityLastSwitch };
+}
 async function savePriorityRuntime(): Promise<void> {
   try {
     const temporary = priorityCachePath() + ".tmp";
     await writeFile(temporary, JSON.stringify({ profile: selectedProfileId(), hash: priorityProfileHash,
-      mode: captureModePreference.get(), candidates: priorityCandidates, paused: priorityPolicy?.paused ?? false }));
+      mode: captureModePreference.get(), candidates: priorityCandidates, settings: priorityPolicy?.settings, paused: priorityPolicy?.paused ?? false }));
     await rename(temporary, priorityCachePath());
   } catch (error) { recordSystemProxyHealth("priority-state-write-error", { error: systemProxyHealthError(error) }); }
 }
@@ -411,11 +434,13 @@ async function restorePriorityRuntime(): Promise<void> {
     if (!profile || saved.profile !== profile || saved.mode !== captureModePreference.get()) return;
     const content = await readFile(contentPath(profile), "utf8");
     if (saved.hash !== createHash("sha256").update(content).digest("hex") || !Array.isArray(saved.candidates)) return;
-    const tags = priorityTags(buildRuntimeConfig(content, captureModePreference.get()));
-    if (saved.candidates.length !== tags.length || !tags.length || saved.candidates.some((c: Candidate, i: number) => c.tag !== tags[i] || !Number.isInteger(c.port) || c.port < 1024 || c.port > 65535)) return;
+    const settings = await loadPrioritySettings(prioritySettingsPath());
+    if (JSON.stringify(saved.settings) !== JSON.stringify(settings)) return;
+    const tags = priorityTags(buildRuntimeConfig(content, captureModePreference.get()), settings);
+    if (saved.candidates.length !== tags.length || saved.candidates.some((c: Candidate, i: number) => c.tag !== tags[i] || !Number.isInteger(c.port) || c.port < 1024 || c.port > 65535)) return;
     if (generation !== priorityGeneration) return;
     priorityCandidates = saved.candidates; priorityProfileHash = saved.hash;
-    priorityPolicy = new PriorityFailover(tags); priorityPolicy.paused = saved.paused === true;
+    priorityPolicy = new PriorityFailover(tags, settings); priorityPolicy.paused = saved.paused === true;
     recordSystemProxyHealth("priority-monitor-restored", { order: tags, paused: priorityPolicy.paused });
   } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") recordSystemProxyHealth("priority-state-read-error", { error: systemProxyHealthError(error) }); }
   finally { restoringPriority = false; }
@@ -456,8 +481,10 @@ function startCoreArchive(): void {
 }
 
 async function runPriorityCheck(): Promise<void> {
+  if (priorityBusy || Date.now() < priorityNextAt) return;
+  priorityNextAt = Date.now() + (priorityPolicy?.settings.healthyIntervalMs ?? 10000);
   if (!priorityPolicy) await restorePriorityRuntime();
-  if (priorityBusy || Date.now() < priorityNextAt || !priorityPolicy || !priorityCandidates.length || startedService === null ||
+  if (priorityBusy || !priorityPolicy || !priorityCandidates.length || startedService === null ||
       daemonState.status !== ServiceStatus_Type.STARTED) return;
   priorityBusy = true;
   const generation = priorityGeneration, epoch = serviceEpoch, policy = priorityPolicy;
@@ -466,7 +493,7 @@ async function runPriorityCheck(): Promise<void> {
     profile === selectedProfileId() && capture === captureModePreference.get() && daemonState.status === ServiceStatus_Type.STARTED;
   try {
     if ((await startedService.getClashModeStatus({}, { timeoutMs: 3000 })).currentMode.toLowerCase() === "direct") return;
-    const group = daemonState.groups.find(g => g.tag === ENTRY_GROUP);
+    const group = daemonState.groups.find(g => g.tag === policy.settings.group);
     if (!group) return;
     const wasPaused = policy.paused;
     policy.observeSelection(group.selected);
@@ -480,7 +507,7 @@ async function runPriorityCheck(): Promise<void> {
     for (const candidate of priorityCandidates) {
       if (!stillCurrent()) return;
       const samples = await Promise.allSettled(["www.gstatic.com", "www.cloudflare.com", "chatgpt.com"].map(targetHost =>
-        probeSystemProxy({ server: "127.0.0.1", port: candidate.port }, { targetHost, path: "/", timeoutMs: 8000 })));
+        probeSystemProxy({ server: "127.0.0.1", port: candidate.port }, { targetHost, path: "/", timeoutMs: policy.settings.probeTimeoutMs })));
       // Slow but completed requests remain usable: congestion alone must not cause flapping.
       const reachable = samples.filter(s => s.status === "fulfilled").length >= 2;
       results.set(candidate.tag, reachable);
@@ -489,8 +516,8 @@ async function runPriorityCheck(): Promise<void> {
     }
     if (!stillCurrent()) return;
     priorityLastResults = { at: Date.now(), reachable: results };
-    priorityNextAt = Date.now() + ([...results.values()].every(Boolean) ? 30000 : 10000);
-    const current = daemonState.groups.find(g => g.tag === ENTRY_GROUP)?.selected;
+    priorityNextAt = Date.now() + ([...results.values()].every(Boolean) ? policy.settings.healthyIntervalMs : policy.settings.failureIntervalMs);
+    const current = daemonState.groups.find(g => g.tag === policy.settings.group)?.selected;
     if (current !== selected) { if (current) policy.observeSelection(current); return; }
     recordSystemProxyHealth("priority-round", { selected, captureMode: capture,
       available: [...results].filter(([, ok]) => ok).map(([tag]) => tag) });
@@ -498,13 +525,14 @@ async function runPriorityCheck(): Promise<void> {
     if (!next || next === selected) return;
     await runServiceOperation(async () => {
       if (!stillCurrent() ||
-          daemonState.groups.find(g => g.tag === ENTRY_GROUP)?.selected !== selected) return;
+          daemonState.groups.find(g => g.tag === policy.settings.group)?.selected !== selected) return;
       if ((await startedService!.getClashModeStatus({}, { timeoutMs: 3000 })).currentMode.toLowerCase() === "direct") return;
       recordSystemProxyHealth("priority-switch-requested", { from: selected, to: next });
       await archiveBoundary("before-priority-switch");
-      if (!stillCurrent() || daemonState.groups.find(g => g.tag === ENTRY_GROUP)?.selected !== selected) return;
-      await startedService!.selectOutbound({ groupTag: ENTRY_GROUP, outboundTag: next }, { timeoutMs: 3000 });
+      if (!stillCurrent() || daemonState.groups.find(g => g.tag === policy.settings.group)?.selected !== selected) return;
+      await startedService!.selectOutbound({ groupTag: policy.settings.group, outboundTag: next }, { timeoutMs: 3000 });
       policy.switched(next, Date.now());
+      priorityLastSwitch = { from: selected, to: next, at: new Date().toISOString(), reason: results.get(selected) ? "首选恢复稳定" : "当前节点连续失败" };
       recordSystemProxyHealth("priority-switch-completed", { from: selected, to: next });
     });
   } catch (error) { recordSystemProxyHealth("priority-check-error", { error: systemProxyHealthError(error) }); }
@@ -541,16 +569,18 @@ async function startServiceWithContent(
     priorityCandidates = []; priorityPolicy = null; priorityLastResults = null; priorityNextAt = 0;
     await archiveBoundary("before-service-start-or-reload");
     const baseContent = buildRuntimeConfig(await preparePublicRules(content), captureMode);
-    const tags = priorityTags(baseContent);
-    const prepared = addProbeRoutes(baseContent, await allocateProbePorts(tags.length));
+    const settings = await loadPrioritySettings(prioritySettingsPath());
+    const tags = priorityTags(baseContent, settings);
+    const prepared = addProbeRoutes(baseContent, await allocateProbePorts(tags.length), settings);
     const runtimeContent = prepared.content;
     await desktopService.startService({ configContent: runtimeContent, options: await serviceStartOptions() });
     await managedService.setSystemProxyEnabled({ enabled: captureMode === "system-proxy" });
     priorityCandidates = prepared.candidates;
-    priorityPolicy = tags.length ? previousPriorityPolicy ?? new PriorityFailover(tags) : null;
+    const reusablePolicy = previousPriorityPolicy && JSON.stringify(previousPriorityPolicy.settings) === JSON.stringify(settings) && JSON.stringify(previousPriorityPolicy.tags) === JSON.stringify(tags);
+    priorityPolicy = reusablePolicy ? previousPriorityPolicy : new PriorityFailover(tags, settings);
     priorityProfileHash = createHash("sha256").update(content).digest("hex");
     await savePriorityRuntime();
-    recordSystemProxyHealth("priority-policy-started", { group: ENTRY_GROUP, order: tags, failbackStableMs: 120000 });
+    recordSystemProxyHealth("priority-policy-started", { ...settings, order: tags, settingsPath: prioritySettingsPath() });
     if (reason !== "health-recovery") systemProxyRecovery.reset();
     recordSystemProxyHealth("service-start-completed", { captureMode, reason });
   } catch (error) {
@@ -632,7 +662,7 @@ async function runSystemProxyHealthCheck(): Promise<number> {
       systemProxyRecovery.recordSuccess();
       return SYSTEM_PROXY_HEALTH_NORMAL_INTERVAL_MILLISECONDS;
     }
-    const selectedEntry = daemonState.groups.find(g => g.tag === ENTRY_GROUP)?.selected;
+    const selectedEntry = daemonState.groups.find(g => g.tag === priorityPolicy?.settings.group)?.selected;
     const independentPathHealthy = selectedEntry && priorityLastResults && Date.now() - priorityLastResults.at < 45000 && priorityLastResults.reachable.get(selectedEntry);
     if (priorityCandidates.length && !independentPathHealthy) {
       recordSystemProxyHealth("recovery-deferred", { reason: "priority-failover-owns-node-recovery" });
@@ -843,6 +873,29 @@ const handlers: Record<
   string,
   (...callArguments: never[]) => Promise<unknown>
 > = {
+  async priorityState(): Promise<PriorityPanelState> { return priorityPanelState(); },
+  async prioritySave(value: PriorityPanelState["settings"], revision: string, profileId: string | null): Promise<PriorityPanelState> {
+    if (profileId !== selectedProfileId()) throw new Error("当前配置已切换，请刷新面板后重试。");
+    const settings = parsePrioritySettings(value);
+    if (settings.enabled) {
+      const view = await priorityPanelState();
+      const group = view.groups.find(item => item.tag === settings.group);
+      if (!group || !group.nodes.length) throw new Error("请选择当前配置中包含代理节点的 selector 分组。");
+      if (settings.order.some(tag => !group.nodes.includes(tag))) throw new Error("顺序包含不属于当前分组的代理节点，请刷新后重试。");
+    }
+    if (profileId !== selectedProfileId()) throw new Error("保存前当前配置发生变化，请刷新后重试。");
+    await savePrioritySettings(prioritySettingsPath(), settings, revision);
+    recordSystemProxyHealth("priority-settings-saved", { group: settings.group, enabled: settings.enabled });
+    return priorityPanelState();
+  },
+  async priorityApply(revision: string, profileId: string | null): Promise<void> {
+    await runServiceOperation(async () => {
+      if (!profileId || profileId !== selectedProfileId()) throw new Error("当前配置已切换，请刷新后重试。");
+      if ((await prioritySettingsSnapshot(prioritySettingsPath())).revision !== revision) throw new Error("配置文件已改变，请刷新并确认后再重载。");
+      if (daemonState.status !== ServiceStatus_Type.STARTED) throw new Error("代理当前未运行；下次启动会读取已保存配置。");
+      await startServiceWithContent(await readFile(contentPath(profileId), "utf8"));
+    });
+  },
   async list(): Promise<ProfilesState> {
     return profilesState();
   },
@@ -1103,7 +1156,7 @@ export function registerProfiles() {
   );
   reconfigureAutoUpdate();
   startCoreArchive();
-  const priorityTimer = setInterval(() => { void runPriorityCheck(); }, 10_000);
+  const priorityTimer = setInterval(() => { void runPriorityCheck(); }, 1_000);
   priorityTimer.unref();
   app.once("before-quit", () => clearInterval(priorityTimer));
   startSystemProxyHealthMonitor();

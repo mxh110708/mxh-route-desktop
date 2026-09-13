@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "group": "US-West Entry",
+  "order": [],
+  "failureRounds": 3,
+  "backupSuccessRounds": 2,
+  "recoverySuccessRounds": 3,
+  "recoveryStableMs": 120000,
+  "failbackCooldownMs": 60000,
+  "probeTimeoutMs": 8000,
+  "healthyIntervalMs": 30000,
+  "failureIntervalMs": 10000
+}

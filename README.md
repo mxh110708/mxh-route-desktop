@@ -18,9 +18,10 @@ The maintained personal changes add:
 See [CUSTOM.md](CUSTOM.md) for upstream synchronization, local signed builds,
 security boundaries, and release maintenance.
 
-## mxh.6：故障切换与日志保存
+## mxh.8：图形化故障切换设置与日志保存
 
-- `US-West Entry` 按 **DMIT → VMISS → MoeCloud** 优先级自动切换，同一服务商内沿用配置中的 IPv4／IPv6 顺序。
+- 默认监测 `US-West Entry` 并按配置中的节点排列切换，不再识别服务商名称；可以修改本地 `priority-failover.json` 选择分组、指定顺序、调整阈值或关闭功能。修改后重载代理即可，无需重新发包。
+- 设置页提供“自动故障切换”面板：下拉选择分组、拖拽或上下移动节点、高级参数、运行状态和最近切换原因。保存与重载分开，重载前确认，外部配置变化时拒绝覆盖。
 - 每个节点独立进行三个 HTTPS 目标探测，不切换主入口来测速。当前节点连续三轮失败、备用连续两轮可用才切换；首选至少三轮成功且稳定两分钟后自动切回。
 - 单个网站失败不触发切换；全部不可用时不回落 DIRECT。手动选节点后暂停自动切换，重新启动代理后恢复。
 - 系统代理和 TUN 模式均支持；Direct 路由模式暂停自动决策。需保持桌面应用运行，最小化到托盘即可。
@@ -28,6 +29,8 @@ security boundaries, and release maintenance.
 - 日志可能含节点名称、目标域名或地址，请仅作为本机私有诊断资料。应用未运行期间的核心日志不能完整补录，切换也不保证已有连接无缝迁移。
 
 详见 [探测、恢复与日志规则](docs/proxy-health.md)。
+
+配置位置、完整示例与参数说明见 [配置驱动故障切换](docs/PRIORITY-FAILOVER.zh-CN.md)。
 
 ## Security
 
