@@ -1,7 +1,33 @@
 import { createConnection } from "node:net";
+import { execFile } from "node:child_process";
+import { join } from "node:path";
+import { promisify } from "node:util";
 import { connect as connectTLS, type TLSSocket } from "node:tls";
 
 import type { SystemProxyEndpoint } from "./runtimeConfig";
+
+export function summarizeWindowsProxy(registry: string, endpoint: SystemProxyEndpoint) {
+  const value = (key: string) => new RegExp(`^\\s*${key}\\s+REG_\\w+\\s+(.*)$`, "mi").exec(registry)?.[1].trim() ?? "";
+  const expected = `${endpoint.server}:${endpoint.port}`.toLowerCase();
+  const proxy = value("ProxyServer").toLowerCase().replace(/^https?:\/\//, "");
+  const matches = (scheme: string) => {
+    if (!proxy.includes("=")) return proxy === expected;
+    return proxy.split(";").some(item => item.trim() === `${scheme}=${expected}`);
+  };
+  return { enabled: Number(value("ProxyEnable")) === 1, httpMatches: matches("http"), httpsMatches: matches("https"),
+    pacConfigured: value("AutoConfigURL") !== "", autoDetect: Number(value("AutoDetect")) === 1 };
+}
+
+/** Read-only, bounded diagnostic. Never log PAC URLs or foreign proxy addresses. */
+export async function readWindowsProxyDiagnostic(endpoint: SystemProxyEndpoint) {
+  if (process.platform !== "win32") return { supported: false };
+  try {
+    const { stdout } = await promisify(execFile)(join(process.env.SystemRoot ?? "C:\\Windows", "System32", "reg.exe"),
+      ["query", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings"],
+      { timeout: 2000, windowsHide: true, maxBuffer: 128 * 1024 });
+    return { supported: true, readable: true, ...summarizeWindowsProxy(stdout, endpoint) };
+  } catch { return { supported: true, readable: false }; }
+}
 
 export interface SystemProxyProbeOptions {
   targetHost?: string;
@@ -25,8 +51,34 @@ export function classifyProxyQuality(results: PromiseSettledResult<ProxyQuality>
   degraded: boolean; recoverable: boolean;
 } {
   const bad = results.filter(r => r.status === "rejected" || r.value.totalMs >= 5_000).length;
-  // A single site's failure/challenge is not evidence the whole proxy needs restarting.
-  return { degraded: bad > 0, recoverable: bad >= 2 };
+  // Slow successful requests are degraded, not evidence that restarting helps.
+  return { degraded: bad > 0, recoverable: results.filter(r => r.status === "rejected").length >= 2 };
+}
+
+export function proxySelectionSnapshot(groups: readonly { tag: string; selected?: string }[]): string {
+  return JSON.stringify(groups.map(group => [group.tag, group.selected ?? ""]).sort((a, b) => a[0].localeCompare(b[0])));
+}
+
+/** Shared mutation epoch; observation delays only automatic reload, never failover. */
+export class RecoveryCoordinator {
+  private epoch = 0;
+  private active = false;
+  private notBefore = 0;
+  constructor(private readonly observationMs = 30000) {}
+  snapshot(): number { return this.epoch; }
+  begin(): void {
+    if (this.active) throw new Error("overlapping recovery operation");
+    this.active = true; this.epoch++;
+  }
+  finish(now: number): void {
+    this.active = false; this.notBefore = now + this.observationMs;
+  }
+  accepts(epoch: number, sampleStartedAt: number, now: number): boolean {
+    return !this.active && epoch === this.epoch && sampleStartedAt >= this.notBefore && now >= sampleStartedAt;
+  }
+  freshIndependent(at: number, now: number): boolean {
+    return !this.active && at >= this.notBefore && now >= at && now - at < 45000;
+  }
 }
 
 export class ConsecutiveFailureRecovery {
