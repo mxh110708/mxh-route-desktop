@@ -12,7 +12,39 @@ import {
   nextSystemProxyProbeDelay,
   probeSystemProxy,
   classifyProxyQuality,
+  proxySelectionSnapshot,
+  summarizeWindowsProxy,
+  RecoveryCoordinator,
 } from "./systemProxyRecovery";
+
+test("switch invalidates queued reload even before selection subscription catches up", () => {
+  const coordinator = new RecoveryCoordinator();
+  const old = coordinator.snapshot();
+  assert.equal(coordinator.accepts(old, 1000, 2000), true);
+  coordinator.begin();
+  assert.equal(coordinator.accepts(old, 1000, 2000), false);
+  assert.throws(() => coordinator.begin(), /overlapping/);
+  coordinator.finish(3000);
+  assert.equal(coordinator.accepts(old, 40000, 41000), false);
+});
+
+test("reload needs probes started after observation, not old probes finishing after it", () => {
+  const coordinator = new RecoveryCoordinator(); coordinator.begin(); coordinator.finish(1000);
+  const epoch = coordinator.snapshot();
+  assert.equal(coordinator.accepts(epoch, 30000, 32000), false);
+  assert.equal(coordinator.accepts(epoch, 31000, 32000), true);
+  assert.equal(coordinator.freshIndependent(30000, 32000), false);
+  assert.equal(coordinator.freshIndependent(31000, 32000), true);
+  assert.equal(coordinator.freshIndependent(31000, 76000), false);
+});
+
+test("failed switch and repeated switches restart observation without blocking failover", async () => {
+  const coordinator = new RecoveryCoordinator();
+  await assert.rejects((async () => { coordinator.begin(); try { throw new Error("RPC timeout"); } finally { coordinator.finish(1000); } })());
+  coordinator.begin(); coordinator.finish(2000);
+  assert.equal(coordinator.accepts(coordinator.snapshot(), 31000, 33000), false);
+  assert.equal(coordinator.accepts(coordinator.snapshot(), 32000, 33000), true);
+});
 
 test("recovery gate triggers once after consecutive failures and rearms on success", () => {
   const gate = new ConsecutiveFailureRecovery(3);
@@ -111,7 +143,26 @@ test("quality policy distinguishes one slow site from repeated multi-site degrad
   const failed = { status: "rejected" as const, reason: new Error("TLS timeout") };
   assert.deepEqual(classifyProxyQuality([good, good, good]), { degraded: false, recoverable: false });
   assert.deepEqual(classifyProxyQuality([good, good, slow]), { degraded: true, recoverable: false });
-  assert.equal(classifyProxyQuality([slow, failed, good]).recoverable, true);
+  assert.equal(classifyProxyQuality([slow, failed, good]).recoverable, false);
+  assert.equal(classifyProxyQuality([slow, slow, slow]).recoverable, false);
+  assert.equal(classifyProxyQuality([failed, failed, good]).recoverable, true);
+});
+
+test("selection snapshots ignore list order but invalidate results after any group switch", () => {
+  const groups = [{ tag: "entry", selected: "a" }, { tag: "business", selected: "entry" }];
+  assert.equal(proxySelectionSnapshot(groups), proxySelectionSnapshot([...groups].reverse()));
+  assert.notEqual(proxySelectionSnapshot(groups), proxySelectionSnapshot([{ ...groups[0], selected: "b" }, groups[1]]));
+  assert.notEqual(proxySelectionSnapshot(groups), proxySelectionSnapshot([groups[0], { ...groups[1], selected: "direct" }]));
+});
+
+test("Windows proxy diagnostics distinguish endpoint drift without exposing private URLs", () => {
+  const endpoint = { server: "127.0.0.1", port: 2080 };
+  const summary = summarizeWindowsProxy("ProxyEnable REG_DWORD 0x1\nProxyServer REG_SZ http://127.0.0.1:2080\nAutoConfigURL REG_SZ https://private.invalid/token", endpoint);
+  assert.deepEqual(summary, { enabled: true, httpMatches: true, httpsMatches: true, pacConfigured: true, autoDetect: false });
+  assert.ok(!JSON.stringify(summary).includes("private.invalid"));
+  const split = summarizeWindowsProxy("ProxyEnable REG_DWORD 0x0\nProxyServer REG_SZ http=127.0.0.1:2080;https=127.0.0.1:9999", endpoint);
+  assert.equal(split.enabled, false); assert.equal(split.httpMatches, true); assert.equal(split.httpsMatches, false);
+  assert.equal(summarizeWindowsProxy("", endpoint).httpsMatches, false);
 });
 
 test("health log rotates and preserves complete concurrent records", async () => {

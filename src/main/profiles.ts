@@ -48,6 +48,9 @@ import {
   nextSystemProxyProbeDelay,
   probeSystemProxy,
   classifyProxyQuality,
+  proxySelectionSnapshot,
+  readWindowsProxyDiagnostic,
+  RecoveryCoordinator,
 } from "./systemProxyRecovery";
 
 const MINIMUM_UPDATE_INTERVAL_MINUTES = 15;
@@ -500,6 +503,7 @@ async function runPriorityCheck(): Promise<void> {
       return;
     }
     const selected = group.selected;
+    const roundStartedAt = Date.now();
     const results = new Map<string, boolean>();
     // One candidate at a time, three small independent HEADs in parallel. No bandwidth test.
     for (const candidate of priorityCandidates) {
@@ -513,7 +517,7 @@ async function runPriorityCheck(): Promise<void> {
         samples: samples.map(s => s.status === "fulfilled" ? s.value : { error: systemProxyHealthError(s.reason) }) });
     }
     if (!stillCurrent()) return;
-    priorityLastResults = { at: Date.now(), reachable: results };
+    priorityLastResults = { at: roundStartedAt, reachable: results };
     priorityNextAt = Date.now() + ([...results.values()].every(Boolean) ? policy.settings.healthyIntervalMs : policy.settings.failureIntervalMs);
     const current = daemonState.groups.find(g => g.tag === policy.settings.group)?.selected;
     if (current !== selected) { if (current) policy.observeSelection(current); return; }
@@ -528,10 +532,18 @@ async function runPriorityCheck(): Promise<void> {
       recordSystemProxyHealth("priority-switch-requested", { from: selected, to: next });
       await archiveBoundary("before-priority-switch");
       if (!stillCurrent() || daemonState.groups.find(g => g.tag === policy.settings.group)?.selected !== selected) return;
-      await startedService!.selectOutbound({ groupTag: policy.settings.group, outboundTag: next }, { timeoutMs: 3000 });
-      policy.switched(next, Date.now());
-      priorityLastSwitch = { from: selected, to: next, at: new Date().toISOString(), reason: results.get(selected) ? "首选恢复稳定" : "当前节点连续失败" };
-      recordSystemProxyHealth("priority-switch-completed", { from: selected, to: next });
+      recoveryCoordinator.begin();
+      systemProxyRecovery.reset();
+      priorityLastResults = null;
+      try {
+        await startedService!.selectOutbound({ groupTag: policy.settings.group, outboundTag: next }, { timeoutMs: 3000 });
+        policy.switched(next, Date.now());
+        priorityLastSwitch = { from: selected, to: next, at: new Date().toISOString(), reason: results.get(selected) ? "首选恢复稳定" : "当前节点连续失败" };
+        recordSystemProxyHealth("priority-switch-completed", { from: selected, to: next });
+      } finally {
+        recoveryCoordinator.finish(Date.now());
+        recordSystemProxyHealth("recovery-observation-started", { reason: "node-switch", durationMs: 30000 });
+      }
     });
   } catch (error) { recordSystemProxyHealth("priority-check-error", { error: systemProxyHealthError(error) }); }
   finally { priorityBusy = false; }
@@ -539,6 +551,7 @@ async function runPriorityCheck(): Promise<void> {
 const systemProxyRecovery = new ConsecutiveFailureRecovery(
   SYSTEM_PROXY_RECOVERY_THRESHOLD,
 );
+const recoveryCoordinator = new RecoveryCoordinator();
 let systemProxyHealthTimer: NodeJS.Timeout | null = null;
 let systemProxyHealthCheckRunning = false;
 
@@ -561,6 +574,7 @@ async function startServiceWithContent(
   }
   recordSystemProxyHealth("service-start-requested", { captureMode, reason });
   priorityConfiguring = true;
+  recoveryCoordinator.begin();
   try {
     const previousPriorityPolicy = reason === "health-recovery" ? priorityPolicy : null;
     priorityGeneration++;
@@ -586,6 +600,8 @@ async function startServiceWithContent(
     throw error;
   } finally {
     priorityConfiguring = false;
+    recoveryCoordinator.finish(Date.now());
+    recordSystemProxyHealth("recovery-observation-started", { reason: "service-start-or-reload", durationMs: 30000 });
   }
 }
 
@@ -640,29 +656,40 @@ async function runSystemProxyHealthCheck(): Promise<number> {
     const content = await readFile(contentPath(selectedId), "utf-8");
     const endpoint = readSystemProxyEndpoint(content);
     const probeEpoch = serviceEpoch;
+    const recoveryEpoch = recoveryCoordinator.snapshot();
+    const probeStartedAt = Date.now();
+    const probeSelection = proxySelectionSnapshot(daemonState.groups);
     const probes = await Promise.allSettled([
       probeSystemProxy(endpoint, { timeoutMs: SYSTEM_PROXY_HEALTH_TIMEOUT_MILLISECONDS }),
       probeSystemProxy(endpoint, { targetHost: "www.cloudflare.com", path: "/cdn-cgi/trace", timeoutMs: SYSTEM_PROXY_HEALTH_TIMEOUT_MILLISECONDS }),
       probeSystemProxy(endpoint, { targetHost: "chatgpt.com", path: "/", timeoutMs: SYSTEM_PROXY_HEALTH_TIMEOUT_MILLISECONDS }),
     ]);
-    // Do not restart a different profile/mode if the user changed it during the probes.
-    if (serviceEpoch !== probeEpoch || selectedProfileId() !== selectedId || captureModePreference.get() !== "system-proxy" || daemonState.status !== ServiceStatus_Type.STARTED) {
+    const windowsProxy = await readWindowsProxyDiagnostic(endpoint);
+    // Do not restart a different profile/mode/selection if it changed during the probes.
+    if (serviceEpoch !== probeEpoch || selectedProfileId() !== selectedId || captureModePreference.get() !== "system-proxy" || daemonState.status !== ServiceStatus_Type.STARTED || proxySelectionSnapshot(daemonState.groups) !== probeSelection) {
+      systemProxyRecovery.reset();
       recordSystemProxyHealth("check-discarded", { reason: "state-changed" });
       return SYSTEM_PROXY_HEALTH_NORMAL_INTERVAL_MILLISECONDS;
     }
     const quality = classifyProxyQuality(probes);
+    recordSystemProxyHealth("windows-proxy-diagnostic", windowsProxy);
     recordSystemProxyHealth("quality-sample", {
       ...quality,
       activeInterfaceCount: Object.values(networkInterfaces()).filter(v => v?.some(a => !a.internal)).length,
       samples: probes.map((r, i) => r.status === "fulfilled" ? r.value : { target: ["www.gstatic.com", "www.cloudflare.com", "chatgpt.com"][i], error: systemProxyHealthError(r.reason) }),
     });
-    if (!quality.recoverable || (priorityCandidates.length > 0 && probes.filter(p => p.status === "rejected").length < 2)) {
+    if (!recoveryCoordinator.accepts(recoveryEpoch, probeStartedAt, Date.now())) {
+      recordSystemProxyHealth("recovery-deferred", { reason: "recovery-observation-or-stale-sample" });
+      return SYSTEM_PROXY_HEALTH_RETRY_INTERVAL_MILLISECONDS;
+    }
+    if (!quality.recoverable) {
       systemProxyRecovery.recordSuccess();
       return SYSTEM_PROXY_HEALTH_NORMAL_INTERVAL_MILLISECONDS;
     }
     const selectedEntry = daemonState.groups.find(g => g.tag === priorityPolicy?.settings.group)?.selected;
-    const independentPathHealthy = selectedEntry && priorityLastResults && Date.now() - priorityLastResults.at < 45000 && priorityLastResults.reachable.get(selectedEntry);
+    const independentPathHealthy = selectedEntry && priorityLastResults && recoveryCoordinator.freshIndependent(priorityLastResults.at, Date.now()) && priorityLastResults.reachable.get(selectedEntry);
     if (priorityCandidates.length && !independentPathHealthy) {
+      systemProxyRecovery.reset();
       recordSystemProxyHealth("recovery-deferred", { reason: "priority-failover-owns-node-recovery" });
       return SYSTEM_PROXY_HEALTH_RETRY_INTERVAL_MILLISECONDS;
     }
@@ -674,11 +701,19 @@ async function runSystemProxyHealthCheck(): Promise<number> {
     recordSystemProxyHealth("automatic-reload-started");
     try {
       await runServiceOperation(async () => {
-        if (serviceEpoch !== probeEpoch || selectedProfileId() !== selectedId || captureModePreference.get() !== "system-proxy" || daemonState.status !== ServiceStatus_Type.STARTED || await readFile(contentPath(selectedId), "utf-8") !== content) {
+        if (serviceEpoch !== probeEpoch || selectedProfileId() !== selectedId || captureModePreference.get() !== "system-proxy" || daemonState.status !== ServiceStatus_Type.STARTED || proxySelectionSnapshot(daemonState.groups) !== probeSelection || await readFile(contentPath(selectedId), "utf-8") !== content) {
           recordSystemProxyHealth("automatic-reload-skipped", { reason: "state-changed" }); return;
         }
         if (startedService !== null && (await startedService.getClashModeStatus({}, { timeoutMs: SYSTEM_PROXY_CONTROL_TIMEOUT_MILLISECONDS })).currentMode.toLowerCase() === "direct") {
           recordSystemProxyHealth("automatic-reload-skipped", { reason: "direct-mode" }); return;
+        }
+        // Recheck after all awaited work, including a switch queued ahead of us.
+        const entry = daemonState.groups.find(g => g.tag === priorityPolicy?.settings.group)?.selected;
+        if (!recoveryCoordinator.accepts(recoveryEpoch, probeStartedAt, Date.now()) ||
+            serviceEpoch !== probeEpoch || proxySelectionSnapshot(daemonState.groups) !== probeSelection ||
+            (priorityCandidates.length > 0 && (!entry || !priorityLastResults ||
+              !recoveryCoordinator.freshIndependent(priorityLastResults.at, Date.now()) || !priorityLastResults.reachable.get(entry)))) {
+          recordSystemProxyHealth("automatic-reload-skipped", { reason: "recovery-evidence-invalidated" }); return;
         }
         await startServiceWithContent(content, "system-proxy", "health-recovery");
         recordSystemProxyHealth("automatic-reload-completed");
