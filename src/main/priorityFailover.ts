@@ -89,5 +89,12 @@ export class PriorityFailover {
       return h.good >= this.settings.recoverySuccessRounds && now - h.since >= this.settings.recoveryStableMs;
     }) ?? null;
   }
+  nextProbeDelay(selected: string, results: ReadonlyMap<string, boolean>): number {
+    const failures = this.history.get(selected)?.bad ?? 0;
+    // Confirm a newly failed active node promptly, but back off after the configured
+    // failure threshold when no backup is ready; do not probe indefinitely at burst rate.
+    if (!this.paused && failures > 0 && failures < this.settings.failureRounds) return 1_000;
+    return [...results.values()].every(Boolean) ? this.settings.healthyIntervalMs : this.settings.failureIntervalMs;
+  }
   switched(tag: string, now: number): void { this.expected = tag; this.lastSwitch = now; }
 }

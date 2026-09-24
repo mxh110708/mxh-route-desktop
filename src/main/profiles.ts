@@ -518,12 +518,16 @@ async function runPriorityCheck(): Promise<void> {
     }
     if (!stillCurrent()) return;
     priorityLastResults = { at: roundStartedAt, reachable: results };
-    priorityNextAt = Date.now() + ([...results.values()].every(Boolean) ? policy.settings.healthyIntervalMs : policy.settings.failureIntervalMs);
     const current = daemonState.groups.find(g => g.tag === policy.settings.group)?.selected;
-    if (current !== selected) { if (current) policy.observeSelection(current); return; }
+    if (current !== selected) {
+      priorityNextAt = Date.now() + ([...results.values()].every(Boolean) ? policy.settings.healthyIntervalMs : policy.settings.failureIntervalMs);
+      if (current) policy.observeSelection(current);
+      return;
+    }
     recordSystemProxyHealth("priority-round", { selected, captureMode: capture,
       available: [...results].filter(([, ok]) => ok).map(([tag]) => tag) });
     const next = policy.record(results, Date.now());
+    priorityNextAt = Date.now() + policy.nextProbeDelay(selected, results);
     if (!next || next === selected) return;
     await runServiceOperation(async () => {
       if (!stillCurrent() ||
