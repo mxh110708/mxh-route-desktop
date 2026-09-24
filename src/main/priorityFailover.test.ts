@@ -41,12 +41,31 @@ test("entry discovery excludes business, aggregate, direct, mixed and malformed 
 test("ordered failure switching needs three bad rounds and a proven backup", () => {
   const p = new PriorityFailover(tags); p.observeSelection(tags[0]);
   assert.equal(p.record(sample(tags[2], tags[3]), 0), null);
+  assert.equal(p.nextProbeDelay(tags[0], sample(tags[2], tags[3])), 1000);
   assert.equal(p.record(sample(tags[2], tags[3]), 10000), null);
+  assert.equal(p.nextProbeDelay(tags[0], sample(tags[2], tags[3])), 1000);
   assert.equal(p.record(sample(tags[2], tags[3]), 20000), tags[2]);
+  assert.equal(p.nextProbeDelay(tags[0], sample(tags[2], tags[3])), 10000);
   p.switched(tags[2], 20000);
   assert.equal(p.record(sample(tags[3]), 30000), null);
   assert.equal(p.record(sample(tags[3]), 40000), null);
   assert.equal(p.record(sample(tags[3]), 50000), tags[3]);
+});
+test("confirmation burst resets on recovery and backs off if every backup stays down", () => {
+  const p = new PriorityFailover(tags); p.observeSelection(tags[0]);
+  const down = sample();
+  assert.equal(p.record(down, 0), null);
+  assert.equal(p.nextProbeDelay(tags[0], down), 1000);
+  assert.equal(p.record(sample(tags[0]), 1000), null);
+  assert.equal(p.nextProbeDelay(tags[0], sample(tags[0])), 10000);
+  assert.equal(p.record(down, 11000), null);
+  assert.equal(p.nextProbeDelay(tags[0], down), 1000);
+  assert.equal(p.record(down, 12000), null);
+  assert.equal(p.nextProbeDelay(tags[0], down), 1000);
+  assert.equal(p.record(down, 13000), null);
+  assert.equal(p.nextProbeDelay(tags[0], down), 10000);
+  assert.equal(p.record(sample(...tags), 23000), null);
+  assert.equal(p.nextProbeDelay(tags[0], sample(...tags)), 30000);
 });
 test("recovery requires 120 seconds of continuous good rounds, not lowest latency", () => {
   const p = new PriorityFailover(tags); p.observeSelection(tags[2]);
@@ -66,6 +85,7 @@ test("manual selection pauses automatic switches including failback", () => {
   const p = new PriorityFailover(tags); p.observeSelection(tags[0]); p.observeSelection(tags[3]);
   for (const now of [0, 60000, 120000, 180000]) assert.equal(p.record(sample(...tags), now), null);
   assert.equal(p.paused, true);
+  assert.equal(p.nextProbeDelay(tags[3], sample()), 10000);
 });
 test("automatic selection is not misclassified as manual", () => {
   const p = new PriorityFailover(tags); p.observeSelection(tags[0]); p.switched(tags[2], 0); p.observeSelection(tags[2]);
@@ -107,7 +127,9 @@ test("arbitrary group and node names, explicit order, disable and invalid member
 test("configured thresholds control both failure and recovery decisions", () => {
   const settings=parsePrioritySettings({failureRounds:1,backupSuccessRounds:1,recoverySuccessRounds:2,recoveryStableMs:10000,failbackCooldownMs:10000});
   const p=new PriorityFailover(tags,settings); p.observeSelection(tags[0]);
-  assert.equal(p.record(sample(tags[2]),0),tags[2]); p.switched(tags[2],0);
+  assert.equal(p.record(sample(tags[2]),0),tags[2]);
+  assert.equal(p.nextProbeDelay(tags[0],sample(tags[2])),settings.failureIntervalMs);
+  p.switched(tags[2],0);
   assert.equal(p.record(sample(...tags),10000),null);
   assert.equal(p.record(sample(...tags),20000),tags[0]);
 });
