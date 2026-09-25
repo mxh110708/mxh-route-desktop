@@ -33,9 +33,11 @@ All-down leaves the selection unchanged; it never chooses DIRECT. Probe rounds
 are serialized, with at least 10 seconds between failing rounds and 30 seconds
 when all nodes are healthy. Failure detection also includes probe duration.
 
-Manual selector changes pause automation until an explicit proxy start/reload.
-The pause and runtime probe mapping survive a desktop restart for the same
-profile and capture mode. Profile/mode/service changes cancel stale decisions.
+The manual-selection pause described in mxh.6 is historical. Current builds treat
+a manually selected monitored node as the preferred node: fail over when it fails,
+then return after stable recovery. The preference and runtime probe mapping
+survive a desktop restart for the same profile. Profile/mode/service changes
+cancel stale decisions.
 Existing connections are not promised seamless migration. The selector's
 configured interrupt policy remains unchanged.
 
