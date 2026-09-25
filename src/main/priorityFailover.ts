@@ -60,11 +60,29 @@ export class PriorityFailover {
   private lastSwitch = -Infinity;
   private expected: string | null = null;
   private lastSample: number | null = null;
-  paused = false;
-  constructor(readonly tags: string[], readonly settings: PrioritySettings = DEFAULT_PRIORITY_SETTINGS) {}
-  observeSelection(selected: string): void {
-    if (this.expected !== null && selected !== this.expected) this.paused = true;
+  private preferredTag: string | null;
+  constructor(readonly tags: string[], readonly settings: PrioritySettings = DEFAULT_PRIORITY_SETTINGS, preferred?: string | null) {
+    this.preferredTag = preferred ?? tags[0] ?? null;
+  }
+  get preferred(): string | null { return this.preferredTag; }
+  isMonitored(tag: string): boolean { return this.tags.includes(tag); }
+  observeSelection(selected: string): boolean {
+    const changed = this.expected !== null && selected !== this.expected;
+    if (changed) {
+      this.preferredTag = selected;
+      this.history.clear();
+      this.lastSample = null;
+      this.lastSwitch = -Infinity;
+    }
     this.expected = selected;
+    return changed;
+  }
+  get ownsNodeRecovery(): boolean {
+    return this.settings.enabled && this.expected !== null && this.isMonitored(this.expected);
+  }
+  private rankedTags(): string[] {
+    return this.preferredTag !== null && this.isMonitored(this.preferredTag)
+      ? [this.preferredTag, ...this.tags.filter(tag => tag !== this.preferredTag)] : this.tags;
   }
   record(results: Map<string, boolean>, now: number): string | null {
     // Sleep/offline gaps are not proof of continuous recovery or consecutive failure.
@@ -76,15 +94,16 @@ export class PriorityFailover {
       const ok = results.get(tag) === true;
       this.history.set(tag, ok ? { good: old.good + 1, bad: 0, since: old.good ? old.since : now } : { good: 0, bad: old.bad + 1, since: now });
     }
-    if (this.paused || this.expected === null || !this.tags.includes(this.expected)) return null;
+    if (this.expected === null || !this.isMonitored(this.expected)) return null;
     const current = this.history.get(this.expected)!;
+    const ranked = this.rankedTags();
     if (current.bad >= this.settings.failureRounds) {
       // A newly failed backup must not be trapped by the failback cooldown.
-      return this.tags.find(t => this.history.get(t)!.good >= this.settings.backupSuccessRounds) ?? null;
+      return ranked.find(t => t !== this.expected && this.history.get(t)!.good >= this.settings.backupSuccessRounds) ?? null;
     }
     if (now - this.lastSwitch < this.settings.failbackCooldownMs) return null;
-    const index = this.tags.indexOf(this.expected);
-    return this.tags.slice(0, index).find(t => {
+    const index = ranked.indexOf(this.expected);
+    return ranked.slice(0, index).find(t => {
       const h = this.history.get(t)!;
       return h.good >= this.settings.recoverySuccessRounds && now - h.since >= this.settings.recoveryStableMs;
     }) ?? null;
@@ -93,7 +112,7 @@ export class PriorityFailover {
     const failures = this.history.get(selected)?.bad ?? 0;
     // Confirm a newly failed active node promptly, but back off after the configured
     // failure threshold when no backup is ready; do not probe indefinitely at burst rate.
-    if (!this.paused && failures > 0 && failures < this.settings.failureRounds) return 1_000;
+    if (this.isMonitored(selected) && failures > 0 && failures < this.settings.failureRounds) return 1_000;
     return [...results.values()].every(Boolean) ? this.settings.healthyIntervalMs : this.settings.failureIntervalMs;
   }
   switched(tag: string, now: number): void { this.expected = tag; this.lastSwitch = now; }

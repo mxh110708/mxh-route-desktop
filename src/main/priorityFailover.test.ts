@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { PriorityFailover, priorityGroups, priorityTags, addProbeRoutes, allocateProbePorts } from "./priorityFailover";
 import { redactCoreMessage, CoreLogArchive } from "./coreLogArchive";
 import { HealthLog } from "./healthLog";
-import { parsePrioritySettings, loadPrioritySettings, prioritySettingsSnapshot, savePrioritySettings } from "./prioritySettings";
+import { DEFAULT_PRIORITY_SETTINGS, parsePrioritySettings, loadPrioritySettings, prioritySettingsSnapshot, savePrioritySettings } from "./prioritySettings";
 import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -51,6 +51,15 @@ test("ordered failure switching needs three bad rounds and a proven backup", () 
   assert.equal(p.record(sample(tags[3]), 40000), null);
   assert.equal(p.record(sample(tags[3]), 50000), tags[3]);
 });
+test("failure switching explicitly excludes the current entry from backup candidates", () => {
+  // The invalid zero threshold makes the exclusion observable independently of
+  // the usual invariant that a failed entry has zero consecutive good rounds.
+  const p = new PriorityFailover(tags, { ...DEFAULT_PRIORITY_SETTINGS, backupSuccessRounds: 0 });
+  p.observeSelection(tags[0]);
+  assert.equal(p.record(sample(tags[1]), 0), null);
+  assert.equal(p.record(sample(tags[1]), 10000), null);
+  assert.equal(p.record(sample(tags[1]), 20000), tags[1]);
+});
 test("confirmation burst resets on recovery and backs off if every backup stays down", () => {
   const p = new PriorityFailover(tags); p.observeSelection(tags[0]);
   const down = sample();
@@ -81,15 +90,60 @@ test("a recovery failure resets the stable window; all-down never selects DIRECT
   assert.equal(p.record(sample(...tags), 240000), tags[0]);
   for (let i = 0; i < 10; i++) assert.equal(p.record(sample(), 300000 + i * 10000), null);
 });
-test("manual selection pauses automatic switches including failback", () => {
-  const p = new PriorityFailover(tags); p.observeSelection(tags[0]); p.observeSelection(tags[3]);
-  for (const now of [0, 60000, 120000, 180000]) assert.equal(p.record(sample(...tags), now), null);
-  assert.equal(p.paused, true);
-  assert.equal(p.nextProbeDelay(tags[3], sample()), 10000);
+test("manual selection becomes the preferred node and keeps failover and failback active", () => {
+  const p = new PriorityFailover(tags);
+  assert.equal(p.observeSelection(tags[0]), false);
+  assert.equal(p.ownsNodeRecovery, true);
+  assert.equal(p.observeSelection(tags[3]), true);
+  assert.equal(p.preferred, tags[3]);
+  assert.equal(p.ownsNodeRecovery, true);
+  assert.equal(p.record(sample(tags[0], tags[2]), 0), null);
+  assert.equal(p.record(sample(tags[0], tags[2]), 10000), null);
+  assert.equal(p.record(sample(tags[0], tags[2]), 20000), tags[0]);
+  p.switched(tags[0], 20000);
+  for (const now of [30000, 60000, 90000, 120000]) assert.equal(p.record(sample(...tags), now), null);
+  assert.equal(p.record(sample(...tags), 150000), tags[3]);
 });
 test("automatic selection is not misclassified as manual", () => {
-  const p = new PriorityFailover(tags); p.observeSelection(tags[0]); p.switched(tags[2], 0); p.observeSelection(tags[2]);
-  assert.equal(p.paused, false);
+  const p = new PriorityFailover(tags); p.observeSelection(tags[0]); p.switched(tags[2], 0);
+  assert.equal(p.observeSelection(tags[2]), false);
+  assert.equal(p.preferred, tags[0]);
+  assert.equal(p.ownsNodeRecovery, true);
+});
+test("further manual changes replace the preferred node; unmonitored selections release recovery", () => {
+  const p = new PriorityFailover(tags); p.observeSelection(tags[0]);
+  assert.equal(p.ownsNodeRecovery, true);
+  p.observeSelection(tags[1]);
+  assert.equal(p.preferred, tags[1]);
+  assert.equal(p.ownsNodeRecovery, true);
+  p.observeSelection("Excluded");
+  assert.equal(p.preferred, "Excluded");
+  assert.equal(p.ownsNodeRecovery, false);
+  assert.equal(p.record(sample(...tags), 0), null);
+  const disabled = new PriorityFailover(tags, parsePrioritySettings({ enabled: false }));
+  disabled.observeSelection(tags[0]);
+  assert.equal(disabled.ownsNodeRecovery, false);
+  assert.equal(new PriorityFailover([]).ownsNodeRecovery, false);
+});
+test("manual preference discards probe history collected before the selection", () => {
+  const p = new PriorityFailover(tags); p.observeSelection(tags[0]);
+  p.record(sample(tags[0], tags[1]), 0);
+  p.record(sample(tags[0], tags[1]), 10000);
+  assert.equal(p.observeSelection(tags[1]), true);
+  assert.equal(p.record(sample(tags[0]), 20000), null);
+  assert.equal(p.record(sample(tags[0]), 30000), null);
+  assert.equal(p.record(sample(tags[0]), 40000), tags[0]);
+  p.switched(tags[0], 40000);
+  for (const now of [50000, 80000, 110000, 140000]) assert.equal(p.record(sample(...tags), now), null);
+  assert.equal(p.record(sample(...tags), 170000), tags[1]);
+});
+test("restored manual preference outranks configured order without changing backup priority", () => {
+  const p = new PriorityFailover(tags, undefined, tags[2]); p.observeSelection(tags[2]);
+  assert.equal(p.preferred, tags[2]);
+  for (const now of [0, 10000, 20000]) assert.equal(p.record(sample(tags[0], tags[1], tags[3]), now), now === 20000 ? tags[0] : null);
+  p.switched(tags[0], 20000);
+  for (const now of [30000, 60000, 90000, 120000]) assert.equal(p.record(sample(...tags), now), null);
+  assert.equal(p.record(sample(...tags), 150000), tags[2]);
 });
 test("sleep gaps do not count toward stable recovery", () => {
   const p = new PriorityFailover(tags); p.observeSelection(tags[2]);
