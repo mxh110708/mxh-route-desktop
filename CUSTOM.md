@@ -21,8 +21,11 @@ System Proxy mode has a conservative recovery monitor for Rule and Global
 routing. A healthy CONNECT path is checked once per minute. A failed check is
 confirmed every five seconds, and only three consecutive failures trigger one
 serialized profile reload. Direct mode and stopped services are not probed.
-State changes and recovery errors are written to `system-proxy-health.log` in
-the MXH Route user-data directory; successful steady-state checks are silent.
+State changes, probe results and recovery errors are written to
+`system-proxy-health.log` in the MXH Route user-data directory. On Windows,
+loopback quality and actual system-proxy ownership are evaluated separately.
+A disabled switch with the expected endpoint is confirmed twice before one
+reassertion; foreign endpoints or PAC settings are never reclaimed.
 
 Application artwork is generated from the icon shipped in the adjacent
 official sing-box core checkout. The product name, application identity, and

@@ -14,7 +14,10 @@ import {
   classifyProxyQuality,
   proxySelectionSnapshot,
   summarizeWindowsProxy,
+  classifyWindowsProxyOwnership,
+  classifyPriorityRecoveryEvidence,
   RecoveryCoordinator,
+  WindowsProxyRecoveryGate,
 } from "./systemProxyRecovery";
 
 test("switch invalidates queued reload even before selection subscription catches up", () => {
@@ -36,6 +39,9 @@ test("reload needs probes started after observation, not old probes finishing af
   assert.equal(coordinator.freshIndependent(30000, 32000), false);
   assert.equal(coordinator.freshIndependent(31000, 32000), true);
   assert.equal(coordinator.freshIndependent(31000, 76000), false);
+  assert.equal(coordinator.freshCompletedRound(31000, 90000, 91000), true);
+  assert.equal(coordinator.freshCompletedRound(30000, 90000, 91000), false);
+  assert.equal(coordinator.freshCompletedRound(31000, 90000, 151000), false);
 });
 
 test("failed switch and repeated switches restart observation without blocking failover", async () => {
@@ -163,6 +169,52 @@ test("Windows proxy diagnostics distinguish endpoint drift without exposing priv
   const split = summarizeWindowsProxy("ProxyEnable REG_DWORD 0x0\nProxyServer REG_SZ http=127.0.0.1:2080;https=127.0.0.1:9999", endpoint);
   assert.equal(split.enabled, false); assert.equal(split.httpMatches, true); assert.equal(split.httpsMatches, false);
   assert.equal(summarizeWindowsProxy("", endpoint).httpsMatches, false);
+});
+
+test("global reload yields to a working backup but escapes a fresh all-down round", () => {
+  const coordinator = new RecoveryCoordinator();
+  coordinator.begin(); coordinator.finish(1000);
+  const candidates = new Map([["main", false], ["backup", true]]);
+  const round = { at: 31000, finishedAt: 90000, reachable: candidates };
+  assert.equal(classifyPriorityRecoveryEvidence("main", round, coordinator, 91000), "unavailable");
+  assert.equal(classifyPriorityRecoveryEvidence("backup", round, coordinator, 91000), "unavailable");
+  assert.equal(classifyPriorityRecoveryEvidence("main", { ...round, reachable: new Map([["main", false], ["backup", false]]) }, coordinator, 91000), "all-down");
+  assert.equal(classifyPriorityRecoveryEvidence("main", { ...round, reachable: new Map([["main", false]]) }, coordinator, 92000,
+    { tag: "main", at: 91000, reachable: true }), "selected-healthy");
+  assert.equal(classifyPriorityRecoveryEvidence("main", { ...round, reachable: new Map([["main", false]]) }, coordinator, 92000,
+    { tag: "main", at: 30000, reachable: true }), "all-down");
+  assert.equal(classifyPriorityRecoveryEvidence("main", { ...round, at: 30000, reachable: new Map([["main", false]]) }, coordinator, 91000), "unavailable");
+  assert.equal(classifyPriorityRecoveryEvidence("main", { ...round, reachable: new Map([["main", false]]) }, coordinator, 151000), "unavailable");
+  const fresh = { at: 31000, finishedAt: 32000, reachable: new Map([["main", true], ["backup", false]]) };
+  assert.equal(classifyPriorityRecoveryEvidence("main", fresh, coordinator, 33000), "selected-healthy");
+});
+
+test("Windows ownership treats a disabled matching endpoint separately from a healthy loopback", () => {
+  const matching = { supported: true, readable: true, enabled: false, httpMatches: true,
+    httpsMatches: true, pacConfigured: false, autoDetect: false };
+  assert.equal(classifyWindowsProxyOwnership(matching), "detached");
+  assert.equal(classifyWindowsProxyOwnership({ ...matching, enabled: true }), "owned");
+  assert.equal(classifyWindowsProxyOwnership({ ...matching, httpsMatches: false }), "foreign");
+  assert.equal(classifyWindowsProxyOwnership({ ...matching, pacConfigured: true }), "foreign");
+  assert.equal(classifyWindowsProxyOwnership({ ...matching, autoDetect: true }), "foreign");
+  assert.equal(classifyWindowsProxyOwnership({ supported: true, readable: false }), "unknown");
+});
+
+test("ownership repair confirms twice and never fights another proxy repeatedly", () => {
+  const gate = new WindowsProxyRecoveryGate();
+  assert.equal(gate.observe("detached"), "retry");
+  assert.equal(gate.observe("unknown"), "unknown");
+  assert.equal(gate.observe("detached"), "retry");
+  assert.equal(gate.observe("detached"), "repair");
+  gate.cancelPendingRepair();
+  assert.equal(gate.observe("detached"), "retry");
+  assert.equal(gate.observe("detached"), "repair");
+  assert.equal(gate.observe("owned"), "healthy");
+  assert.equal(gate.observe("detached"), "suspended");
+  assert.equal(gate.observe("foreign"), "foreign");
+  gate.reset();
+  assert.equal(gate.observe("detached"), "retry");
+  assert.equal(gate.observe("detached"), "repair");
 });
 
 test("health log rotates and preserves complete concurrent records", async () => {

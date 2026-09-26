@@ -100,6 +100,7 @@ function updatesState(): UpdatesState {
   return {
     supported: UPDATES_SUPPORTED,
     githubTokenSupported: !__CUSTOM_BUILD__,
+    trackSelectable: !__CUSTOM_BUILD__,
     track: currentTrack(),
     checkUpdateEnabled: checkUpdateEnabledPreference.get(),
     prompted: updateCheckPromptedPreference.get(),

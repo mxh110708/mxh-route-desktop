@@ -29,6 +29,66 @@ export async function readWindowsProxyDiagnostic(endpoint: SystemProxyEndpoint) 
   } catch { return { supported: true, readable: false }; }
 }
 
+export type WindowsProxyOwnership = "owned" | "detached" | "foreign" | "unknown";
+
+export function classifyWindowsProxyOwnership(reading: {
+  supported: boolean;
+  readable?: boolean;
+  enabled?: boolean;
+  httpMatches?: boolean;
+  httpsMatches?: boolean;
+  pacConfigured?: boolean;
+  autoDetect?: boolean;
+}): WindowsProxyOwnership {
+  if (!reading.supported || !reading.readable) return "unknown";
+  // A foreign endpoint, PAC, or auto-detection can be intentional. Never take
+  // ownership of those settings based on a successful loopback probe.
+  if (!reading.httpMatches || !reading.httpsMatches || reading.pacConfigured || reading.autoDetect) return "foreign";
+  return reading.enabled ? "owned" : "detached";
+}
+
+/** At most one automatic reassertion per service session; repeated changes yield. */
+export class WindowsProxyRecoveryGate {
+  private detachedSamples = 0;
+  private repairAttempted = false;
+  private suspended = false;
+
+  observe(state: WindowsProxyOwnership): "healthy" | "retry" | "repair" | "foreign" | "unknown" | "suspended" {
+    if (state === "owned") {
+      this.detachedSamples = 0;
+      return "healthy";
+    }
+    if (state === "unknown") {
+      this.detachedSamples = 0;
+      return "unknown";
+    }
+    if (state === "foreign") {
+      this.suspended = true;
+      return "foreign";
+    }
+    if (this.suspended || this.repairAttempted) {
+      this.suspended = true;
+      return "suspended";
+    }
+    this.detachedSamples++;
+    if (this.detachedSamples < 2) return "retry";
+    this.repairAttempted = true;
+    return "repair";
+  }
+
+  reset(): void {
+    this.detachedSamples = 0;
+    this.repairAttempted = false;
+    this.suspended = false;
+  }
+
+  cancelPendingRepair(): void {
+    if (this.suspended) return;
+    this.detachedSamples = 0;
+    this.repairAttempted = false;
+  }
+}
+
 export interface SystemProxyProbeOptions {
   targetHost?: string;
   targetPort?: number;
@@ -79,6 +139,46 @@ export class RecoveryCoordinator {
   freshIndependent(at: number, now: number): boolean {
     return !this.active && at >= this.notBefore && now >= at && now - at < 45000;
   }
+  freshCompletedRound(startedAt: number, completedAt: number, now: number): boolean {
+    return !this.active && startedAt >= this.notBefore && completedAt >= startedAt &&
+      now >= completedAt && now - completedAt < 60000;
+  }
+}
+
+export interface PriorityProbeEvidence {
+  at: number;
+  finishedAt: number;
+  reachable: ReadonlyMap<string, boolean>;
+}
+
+export interface SelectedProbeEvidence {
+  tag: string;
+  at: number;
+  reachable: boolean;
+}
+
+export function classifyPriorityRecoveryEvidence(
+  selected: string | undefined,
+  result: PriorityProbeEvidence | null,
+  coordinator: RecoveryCoordinator,
+  now: number,
+  selectedProbe: SelectedProbeEvidence | null = null,
+): "selected-healthy" | "all-down" | "unavailable" {
+  if (!selected) return "unavailable";
+  if (selectedProbe?.tag === selected && selectedProbe.reachable &&
+      (result === null || selectedProbe.at >= result.at) &&
+      coordinator.freshIndependent(selectedProbe.at, now)) {
+    return "selected-healthy";
+  }
+  if (result === null) return "unavailable";
+  if (result.reachable.get(selected) === true && coordinator.freshIndependent(result.at, now)) {
+    return "selected-healthy";
+  }
+  if (result.reachable.size > 0 && [...result.reachable.values()].every(reachable => !reachable) &&
+      coordinator.freshCompletedRound(result.at, result.finishedAt, now)) {
+    return "all-down";
+  }
+  return "unavailable";
 }
 
 export class ConsecutiveFailureRecovery {

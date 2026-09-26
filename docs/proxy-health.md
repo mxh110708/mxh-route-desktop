@@ -1,5 +1,22 @@
 # System proxy quality monitoring
 
+## 1.14.2-mxh.1: Windows ownership and all-down recovery
+
+The current Windows build treats a successful local CONNECT probe and Windows
+system-proxy ownership as separate signals. If `ProxyEnable` is off while the
+expected HTTP and HTTPS endpoint remains configured, it confirms the drift on
+two checks and requests one re-application through the existing user-session
+daemon. A second drift in the same service session stops automatic retries and
+shows a system warning. A foreign proxy address, PAC, auto-detection or an
+unreadable registry never authorizes automatic takeover. No full core reload is
+used solely to repair the Windows proxy switch.
+
+Node failover still owns single-node recovery. A fresh round in which all
+independent candidate probes fail permits one serialized whole-proxy reload
+after the existing three failed whole-proxy quality rounds. The round must
+start after the observation window and finish recently; stale evidence cannot
+authorize a reload. See [audit](AUDIT-1.14.2.zh-CN.md) for limitations.
+
 ## mxh.7: configuration-driven policy
 
 Provider-name ranking has been removed. The application data directory's

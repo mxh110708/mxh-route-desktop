@@ -365,6 +365,7 @@ export interface AppUpdateInfo {
 export interface UpdatesState {
   supported: boolean;
   githubTokenSupported: boolean;
+  trackSelectable: boolean;
   track: UpdateTrack;
   checkUpdateEnabled: boolean;
   prompted: boolean;
