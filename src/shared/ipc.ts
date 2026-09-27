@@ -136,6 +136,7 @@ export interface ProfilesState {
   selectedId: string | null;
   profiles: ProfileMetadata[];
   captureMode: CaptureMode;
+  windowsProxyHealth?: "inactive" | "unsupported" | "healthy" | "confirming" | "repairing" | "foreign" | "suspended" | "unknown";
 }
 
 export interface ProfileCreate {
@@ -185,6 +186,8 @@ export interface ProfilesBridge {
   updateRemote(id: string): Promise<void>;
   setCaptureMode(mode: CaptureMode): Promise<void>;
   startService(): Promise<void>;
+  stopService(): Promise<void>;
+  reapplySystemProxy(): Promise<void>;
   takeOverService(): Promise<void>;
   pickImportFile(): Promise<{ fileName: string; data: Uint8Array } | null>;
   exportFile(id: string): Promise<boolean>;

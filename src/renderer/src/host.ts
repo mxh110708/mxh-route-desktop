@@ -116,7 +116,7 @@ export function createDesktopHost(): DesktopHost {
     },
     service: {
       start: () => bridge.profiles.startService(),
-      stop: () => desktopApi.stopService(),
+      stop: () => bridge.profiles.stopService(),
       takeOver: () => bridge.profiles.takeOverService(),
     },
     servers: {
@@ -204,6 +204,7 @@ export function createDesktopHost(): DesktopHost {
       priorityState: () => bridge.profiles.priorityState(),
       prioritySave: (settings, revision, profileId) => bridge.profiles.prioritySave(settings, revision, profileId),
       priorityApply: (revision, profileId) => bridge.profiles.priorityApply(revision, profileId),
+      reapplySystemProxy: () => bridge.profiles.reapplySystemProxy(),
       list: () => bridge.profiles.list(),
       onChanged: (listener) => bridge.profiles.onChanged(listener),
       create: async (init) => {

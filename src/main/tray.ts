@@ -4,10 +4,10 @@ import type { MenuItemConstructorOptions, NativeImage, Rectangle } from "electro
 import { ServiceStatus_Type } from "../shared/gen/daemon/started_service_pb";
 import { desktopLanguageFromLocale, translateDesktop } from "../shared/translations";
 import type { DesktopMessageKey } from "../shared/translations";
-import { managedService, startedService } from "./daemon";
+import { startedService } from "./daemon";
 import { preferredLocale } from "./locale";
 import { onPreferenceChanged } from "./preferences";
-import { onProfilesChanged, profilesState, selectProfile, startSelectedProfile } from "./profiles";
+import { onProfilesChanged, profilesState, selectProfile, startSelectedProfile, stopSelectedService } from "./profiles";
 import { resourcePath } from "./resources";
 import { daemonState } from "./state";
 import { destroyTrayMenuWindow, hideTrayMenu, prepareTrayMenuWindow, showTrayMenu } from "./trayMenu";
@@ -113,7 +113,7 @@ function buildTrayTemplate(): MenuItemConstructorOptions[] {
   if (started) {
     template.push({
       label: translate("Stop"),
-      click: () => ignoreErrors(managedService?.stopService({})),
+      click: () => ignoreErrors(stopSelectedService()),
     });
   } else {
     template.push({

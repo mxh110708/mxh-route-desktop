@@ -53,7 +53,7 @@ export function addProbeRoutes(content: string, ports: number[], settings: Prior
   return { content: JSON.stringify(config), candidates };
 }
 
-interface History { good: number; bad: number; since: number }
+interface History { good: number; bad: number; since: number; at: number; sampleAt: number }
 /** No latency ranking. A failure round requires at least two independent HTTPS failures. */
 export class PriorityFailover {
   private history = new Map<string, History>();
@@ -65,6 +65,7 @@ export class PriorityFailover {
     this.preferredTag = preferred ?? tags[0] ?? null;
   }
   get preferred(): string | null { return this.preferredTag; }
+  clearSamples(): void { this.history.clear(); this.lastSample = null; }
   isMonitored(tag: string): boolean { return this.tags.includes(tag); }
   observeSelection(selected: string): boolean {
     const changed = this.expected !== null && selected !== this.expected;
@@ -84,28 +85,38 @@ export class PriorityFailover {
     return this.preferredTag !== null && this.isMonitored(this.preferredTag)
       ? [this.preferredTag, ...this.tags.filter(tag => tag !== this.preferredTag)] : this.tags;
   }
-  record(results: Map<string, boolean>, now: number): string | null {
+  record(results: Map<string, boolean>, now: number, sampleAt = now): string | null {
     // Sleep/offline gaps are not proof of continuous recovery or consecutive failure.
     const staleGap = Math.max(120000, Math.max(this.settings.healthyIntervalMs, this.settings.failureIntervalMs) + this.tags.length * this.settings.probeTimeoutMs + 30000);
     if (this.lastSample !== null && now - this.lastSample > staleGap) this.history.clear();
     this.lastSample = now;
     for (const tag of this.tags) {
-      const old = this.history.get(tag) ?? { good: 0, bad: 0, since: now };
+      // Independent active/backup lanes only count samples actually collected.
+      if (!results.has(tag)) continue;
+      const prior = this.history.get(tag);
+      if (prior && sampleAt < prior.sampleAt) continue;
+      const old = prior && now - prior.at <= staleGap ? prior : { good: 0, bad: 0, since: now, at: now, sampleAt };
       const ok = results.get(tag) === true;
-      this.history.set(tag, ok ? { good: old.good + 1, bad: 0, since: old.good ? old.since : now } : { good: 0, bad: old.bad + 1, since: now });
+      this.history.set(tag, ok ? { good: old.good + 1, bad: 0, since: old.good ? old.since : now, at: now, sampleAt } : { good: 0, bad: old.bad + 1, since: now, at: now, sampleAt });
     }
+    return this.decide(now);
+  }
+  decide(now: number): string | null {
     if (this.expected === null || !this.isMonitored(this.expected)) return null;
-    const current = this.history.get(this.expected)!;
+    const current = this.history.get(this.expected);
+    const fresh = (h: History | undefined): h is History => !!h && now >= h.at &&
+      now - h.at <= Math.max(45000, this.settings.healthyIntervalMs + this.settings.probeTimeoutMs + 5000);
+    if (!fresh(current)) return null;
     const ranked = this.rankedTags();
     if (current.bad >= this.settings.failureRounds) {
       // A newly failed backup must not be trapped by the failback cooldown.
-      return ranked.find(t => t !== this.expected && this.history.get(t)!.good >= this.settings.backupSuccessRounds) ?? null;
+      return ranked.find(t => t !== this.expected && fresh(this.history.get(t)) && this.history.get(t)!.good >= this.settings.backupSuccessRounds) ?? null;
     }
     if (now - this.lastSwitch < this.settings.failbackCooldownMs) return null;
     const index = ranked.indexOf(this.expected);
     return ranked.slice(0, index).find(t => {
-      const h = this.history.get(t)!;
-      return h.good >= this.settings.recoverySuccessRounds && now - h.since >= this.settings.recoveryStableMs;
+      const h = this.history.get(t);
+      return fresh(h) && h.good >= this.settings.recoverySuccessRounds && now - h.since >= this.settings.recoveryStableMs;
     }) ?? null;
   }
   nextProbeDelay(selected: string, results: ReadonlyMap<string, boolean>): number {

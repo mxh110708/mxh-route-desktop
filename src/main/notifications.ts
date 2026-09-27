@@ -12,12 +12,14 @@ const RECONNECT_DELAY = 3000;
 const shown = new Map<string, Notification>();
 let systemProxyWarning: Notification | null = null;
 
-export function showSystemProxyRecoveryWarning(): void {
+export function showSystemProxyRecoveryWarning(foreign = false): void {
   if (!Notification.isSupported()) return;
   systemProxyWarning?.close();
   const notification = new Notification({
     title: "MXH Route 系统代理未保持开启",
-    body: "系统代理在自动恢复后再次被关闭。为避免与其他代理争夺，MXH Route 已暂停自动恢复；请检查代理软件或手动重启 MXH Route 代理。",
+    body: foreign
+      ? "Windows 代理地址、PAC 或自动检测设置已改变。MXH Route 已避让，请检查其他代理软件；详情见概述中的 Windows 系统代理状态。"
+      : "自动恢复额度已用尽，或此前检测到代理归属变化。为避免与其他代理争夺，MXH Route 已暂停自动恢复；请检查其他代理软件，详情见概述。",
   });
   systemProxyWarning = notification;
   notification.on("close", () => {

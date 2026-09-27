@@ -1,8 +1,18 @@
 # System proxy quality monitoring
 
+## 1.14.2-mxh.2: independent local-state and active-node monitoring
+
+See [the 2026-09-27 revision](RECOVERY-REVISION-20260927.zh-CN.md) for the current
+source behavior and validation boundaries. Local Windows checks run independently
+at 2-second intervals with a 1-second confirmation delay, not on the 60-second
+HTTPS timer. The active node has its own probe lane; at most two backup nodes are
+surveyed concurrently, plus one bounded pre-switch verification. Repair allowance
+and uncertain outcomes persist across application restarts. Historical sections
+below describe earlier releases, not all current scheduling details.
+
 ## 1.14.2-mxh.1: Windows ownership and all-down recovery
 
-The current Windows build treats a successful local CONNECT probe and Windows
+That Windows release treats a successful local CONNECT probe and Windows
 system-proxy ownership as separate signals. If `ProxyEnable` is off while the
 expected HTTP and HTTPS endpoint remains configured, it confirms the drift on
 two checks and requests one re-application through the existing user-session

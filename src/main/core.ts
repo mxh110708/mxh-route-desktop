@@ -11,6 +11,7 @@ import type {
 import { desktopService, managedService } from "./daemon";
 import { runElevatedServiceCommand } from "./repair";
 import { daemonState } from "./state";
+import { stopSelectedService } from "./profiles";
 
 async function info(): Promise<CoreInfo> {
   if (desktopService === null) {
@@ -59,7 +60,7 @@ async function destroyWorkingDirectory(): Promise<void> {
   }
   const status = daemonState.status;
   if (status === ServiceStatus_Type.STARTED || status === ServiceStatus_Type.STARTING) {
-    await managedService.stopService({});
+    await stopSelectedService();
   }
   await desktopService.destroyWorkingDirectory({});
 }

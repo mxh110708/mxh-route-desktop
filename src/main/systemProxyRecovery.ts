@@ -82,6 +82,12 @@ export class WindowsProxyRecoveryGate {
     this.suspended = false;
   }
 
+  interruptConfirmation(): void {
+    this.detachedSamples = 0;
+  }
+
+  suspend(): void { this.suspended = true; this.detachedSamples = 0; }
+
   cancelPendingRepair(): void {
     if (this.suspended) return;
     this.detachedSamples = 0;
