@@ -20,6 +20,15 @@ security boundaries, and release maintenance.
 The [1.14.2 audit](docs/AUDIT-1.14.2.zh-CN.md) classifies retained customizations,
 recovery boundaries, and remaining validation limits.
 
+## 本地配置与端口设置
+
+- “从文件导入”记住上次选择的文件夹；文件夹不可用时使用系统默认位置。
+- “设置 → 端口设置”可调整当前配置的混合端口，按需启用独立 SOCKS、HTTP 端口，沿用既有设置界面样式。
+- 保存前校验端口范围、重复和占用；运行时明确提示“保存并重载”，失败尝试恢复原配置和服务。更改同步用于系统代理和本地健康检测，并保留故障切换首选入口。
+- 手动测速默认目标对齐 Clash Verge 的 Cloudflare HTTP 目标，仍测量预热后的完整链路请求耗时，不将延迟除以二。后台健康探测保持独立口径。
+
+详见 [端口设置说明](docs/PROXY-PORTS.zh-CN.md) 和 [延迟检测说明](docs/LATENCY-MEASUREMENT.zh-CN.md)。
+
 ## 图形化故障切换设置与日志保存
 
 - 首次使用需明确选择由实际代理节点组成的入口组；不按组名或服务商名称硬编码。可修改本地 `priority-failover.json` 指定顺序、调整阈值或关闭功能。修改后重载代理即可，无需重新发包。

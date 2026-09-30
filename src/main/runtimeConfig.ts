@@ -24,7 +24,7 @@ function objectArray(value: unknown): JsonObject[] {
   return Array.isArray(value) ? value.filter(isObject) : [];
 }
 
-function parseConfig(content: string): JsonObject {
+export function parseConfig(content: string): JsonObject {
   const errors: ParseError[] = [];
   const parsed: unknown = parse(content, errors, {
     allowTrailingComma: true,

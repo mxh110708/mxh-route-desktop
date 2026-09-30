@@ -7,10 +7,11 @@ import {
   mkdir,
   readFile,
   rename,
+  stat,
   unlink,
   writeFile,
 } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, dirname, isAbsolute, join } from "node:path";
 import { networkInterfaces } from "node:os";
 import { createHash, randomUUID } from "node:crypto";
 
@@ -28,6 +29,8 @@ import type {
 import { writeApplicationCacheFile } from "./appCache";
 import { desktopService, managedService, startedService } from "./daemon";
 import { Preference, settingsDatabase } from "./database";
+import { assertProxyPortsAvailable, carryProxyPortPriorityPreference, commitProxyPortChange, prepareProxyPortConfig, readProxyPorts } from "./proxyPorts";
+import type { ProxyPortPanelState, ProxyPortSettings } from "../shared/proxyPorts";
 import {
   buildRuntimeConfig,
   parseCaptureMode,
@@ -131,6 +134,12 @@ const selectedProfilePreference = new Preference<string | null>(
   },
 );
 
+const profileImportDirectoryPreference = new Preference<string | null>(
+  "profile_import_directory",
+  null,
+  (value) => typeof value === "string" && isAbsolute(value) ? value : null,
+);
+
 const captureModePreference = new Preference<CaptureMode>(
   "capture_mode",
   "tun",
@@ -167,6 +176,19 @@ function selectedProfileId(): string | null {
 
 function writeSelectedProfileId(id: string | null): void {
   selectedProfilePreference.set(id);
+}
+
+async function proxyPortPanelState(): Promise<ProxyPortPanelState> {
+  const profileId = selectedProfileId();
+  const content = profileId ? await readFile(contentPath(profileId), "utf8") : null;
+  return {
+    profileId,
+    profileName: profileId ? findProfile(profileId).name : null,
+    revision: content === null ? "" : createHash("sha256").update(content).digest("hex"),
+    ports: content === null ? null : readProxyPorts(content),
+    running: daemonState.status === ServiceStatus_Type.STARTED,
+    busy: daemonState.status === ServiceStatus_Type.STARTING || daemonState.status === ServiceStatus_Type.STOPPING,
+  };
 }
 
 function findProfile(id: string): ProfileMetadata {
@@ -464,7 +486,7 @@ async function loadSavedPriorityPreference(profile: string | null, hash: string,
   if (!profile) return null;
   try {
     const saved = JSON.parse(await readFile(priorityCachePath(), "utf8"));
-    if (saved.profile !== profile || saved.hash !== hash || saved.settings?.group !== group) return null;
+    if (saved.profile !== profile || (saved.hash !== hash && saved.portEditedHash !== hash) || saved.settings?.group !== group) return null;
     return savedPriorityPreference(saved, tags, group);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") recordSystemProxyHealth("priority-state-read-error", { error: systemProxyHealthError(error) });
@@ -678,6 +700,7 @@ async function startServiceWithContent(
   content: string,
   captureMode = captureModePreference.get(),
   reason = "user-or-profile-change",
+  operationCurrent?: () => boolean,
 ): Promise<void> {
   if (desktopService === null || managedService === null) {
     throw new Error("daemon is not available");
@@ -698,16 +721,20 @@ async function startServiceWithContent(
     const tags = priorityTags(baseContent, settings);
     const profileId = selectedProfileId();
     const profileHash = createHash("sha256").update(content).digest("hex");
-    const carriedPreferred = previousPriorityPolicy && previousProfileId === profileId && previousProfileHash === profileHash &&
+    const carriedPreferred = previousPriorityPolicy && previousProfileId === profileId &&
+      (previousProfileHash === profileHash || reason === "user-port-change" || reason === "port-change-rollback") &&
       previousPriorityPolicy.settings.group === settings.group && previousPriorityPolicy.preferred && tags.includes(previousPriorityPolicy.preferred)
       ? previousPriorityPolicy.preferred : null;
     const preferred = carriedPreferred ?? await loadSavedPriorityPreference(profileId, profileHash, settings.group, tags);
     const prepared = addProbeRoutes(baseContent, await allocateProbePorts(tags.length), settings);
     const runtimeContent = prepared.content;
+    if (operationCurrent && !operationCurrent()) throw new Error("端口操作已被其他配置或代理操作取消。");
     if (reason === "health-recovery" && (localProxyPaused || intent !== localProxyIntent)) throw new Error("recovery cancelled by user operation");
     await desktopService.startService({ configContent: runtimeContent, options: await serviceStartOptions() }, { timeoutMs: 60_000 });
+    if (operationCurrent && !operationCurrent()) throw new Error("端口操作已被其他配置或代理操作取消。");
     if (reason === "health-recovery" && (localProxyPaused || intent !== localProxyIntent)) throw new Error("recovery cancelled by user operation");
     await managedService.setSystemProxyEnabled({ enabled: captureMode === "system-proxy" }, { timeoutMs: SYSTEM_PROXY_CONTROL_TIMEOUT_MILLISECONDS });
+    if (operationCurrent && !operationCurrent()) throw new Error("端口操作已被其他配置或代理操作取消。");
     priorityCandidates = prepared.candidates;
     priorityPolicy = new PriorityFailover(tags, settings, preferred);
     priorityProfileId = profileId; priorityProfileHash = profileHash; priorityCaptureMode = captureMode;
@@ -1100,6 +1127,55 @@ const handlers: Record<
   string,
   (...callArguments: never[]) => Promise<unknown>
 > = {
+  async proxyPortState(): Promise<ProxyPortPanelState> { return proxyPortPanelState(); },
+  async proxyPortSave(ports: ProxyPortSettings, revision: string, profileId: string, expectedRunning: boolean): Promise<ProxyPortPanelState> {
+    if (!profileId || profileId !== selectedProfileId()) throw new Error("当前配置已切换，请刷新后重试。");
+    await runProfileOperation(profileId, () => runServiceOperation(async () => {
+      const original = await readFile(contentPath(profileId), "utf8");
+      if (profileId !== selectedProfileId() || createHash("sha256").update(original).digest("hex") !== revision) {
+        throw new Error("当前配置已改变，请刷新后重试。");
+      }
+      if (daemonState.status === ServiceStatus_Type.STARTING || daemonState.status === ServiceStatus_Type.STOPPING) {
+        throw new Error("代理正在启动或停止，请稍后重试。");
+      }
+      const running = daemonState.status === ServiceStatus_Type.STARTED;
+      if (running !== expectedRunning) throw new Error("代理运行状态已改变，请刷新后确认是否重载。");
+      const observedIntent = localProxyIntent;
+      const next = prepareProxyPortConfig(original, ports);
+      await checkConfig(buildRuntimeConfig(next, captureModePreference.get()));
+      await assertProxyPortsAvailable(original, next, running);
+      if (profileId !== selectedProfileId() || observedIntent !== localProxyIntent ||
+          await readFile(contentPath(profileId), "utf8") !== original) {
+        throw new Error("当前配置或代理状态已改变，请刷新后重试。");
+      }
+      const previousPaused = localProxyPaused;
+      const intent = ++localProxyIntent;
+      localProxyPaused = true;
+      const current = () => selectedProfileId() === profileId && localProxyIntent === intent;
+      try {
+        await commitProxyPortChange(original, next, {
+          current,
+          write: (content) => atomicWriteFile(contentPath(profileId), content),
+          apply: running ? (content, rollback) => startServiceWithContent(content, captureModePreference.get(),
+            rollback ? "port-change-rollback" : "user-port-change", current) : undefined,
+        });
+        if (!running) {
+          try {
+            const saved = JSON.parse(await readFile(priorityCachePath(), "utf8"));
+            const carried = carryProxyPortPriorityPreference(saved, profileId, revision, createHash("sha256").update(next).digest("hex"));
+            if (carried && current()) await atomicWriteFile(priorityCachePath(), JSON.stringify(carried));
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== "ENOENT") recordSystemProxyHealth("priority-port-preference-write-error", { error: systemProxyHealthError(error) });
+          }
+        }
+        if (running && localProxyIntent === intent) windowsProxyMonitor.newSession();
+        notifyChanged();
+      } finally {
+        if (localProxyIntent === intent) localProxyPaused = previousPaused;
+      }
+    }));
+    return proxyPortPanelState();
+  },
   async priorityState(): Promise<PriorityPanelState> { return priorityPanelState(); },
   async prioritySave(value: PriorityPanelState["settings"], revision: string, profileId: string | null): Promise<PriorityPanelState> {
     if (profileId !== selectedProfileId()) throw new Error("当前配置已切换，请刷新面板后重试。");
@@ -1318,7 +1394,13 @@ const handlers: Record<
     fileName: string;
     data: Uint8Array;
   } | null> {
+    const rememberedDirectory = profileImportDirectoryPreference.get();
+    const defaultPath = rememberedDirectory !== null &&
+      await stat(rememberedDirectory).then((entry) => entry.isDirectory()).catch(() => false)
+      ? rememberedDirectory
+      : undefined;
     const result = await dialog.showOpenDialog({
+      defaultPath,
       filters: [{ name: "sing-box profile", extensions: ["json", "bpf"] }],
       properties: ["openFile"],
     });
@@ -1326,7 +1408,9 @@ const handlers: Record<
       return null;
     }
     const filePath = result.filePaths[0];
-    return { fileName: basename(filePath), data: await readFile(filePath) };
+    const data = await readFile(filePath);
+    profileImportDirectoryPreference.set(dirname(filePath));
+    return { fileName: basename(filePath), data };
   },
 
   async importData(fileName: string, data: Uint8Array): Promise<void> {

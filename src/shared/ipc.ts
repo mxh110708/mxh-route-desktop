@@ -172,6 +172,8 @@ export interface PriorityPanelState {
 }
 
 export interface ProfilesBridge {
+  proxyPortState(): Promise<import("./proxyPorts").ProxyPortPanelState>;
+  proxyPortSave(ports: import("./proxyPorts").ProxyPortSettings, revision: string, profileId: string, running: boolean): Promise<import("./proxyPorts").ProxyPortPanelState>;
   priorityState(): Promise<PriorityPanelState>;
   prioritySave(settings: PriorityPanelState["settings"], revision: string, profileId: string | null): Promise<PriorityPanelState>;
   priorityApply(revision: string, profileId: string | null): Promise<void>;

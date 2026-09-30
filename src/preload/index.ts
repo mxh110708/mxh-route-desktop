@@ -177,6 +177,8 @@ const bridge: DesktopBridge = {
     triggerAppCrash: (type) => callReports("triggerAppCrash", type),
   },
     profiles: {
+      proxyPortState: () => callProfiles("proxyPortState"),
+      proxyPortSave: (ports, revision, profileId, running) => callProfiles("proxyPortSave", ports, revision, profileId, running),
       priorityState: () => callProfiles("priorityState"),
       prioritySave: (settings, revision, profileId) => callProfiles("prioritySave", settings, revision, profileId),
       priorityApply: (revision, profileId) => callProfiles("priorityApply", revision, profileId),

@@ -201,6 +201,8 @@ export function createDesktopHost(): DesktopHost {
       triggerOOMReport: () => desktopApi.triggerOOMReport(),
     },
     profiles: {
+      proxyPortState: () => bridge.profiles.proxyPortState(),
+      proxyPortSave: (ports, revision, profileId, running) => bridge.profiles.proxyPortSave(ports, revision, profileId, running),
       priorityState: () => bridge.profiles.priorityState(),
       prioritySave: (settings, revision, profileId) => bridge.profiles.prioritySave(settings, revision, profileId),
       priorityApply: (revision, profileId) => bridge.profiles.priorityApply(revision, profileId),
