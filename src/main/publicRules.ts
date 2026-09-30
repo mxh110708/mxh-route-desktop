@@ -5,6 +5,7 @@ import { parse as parseJSONC, type ParseError } from "jsonc-parser";
 
 export const PUBLIC_RULE_BUNDLE_URL = "https://raw.githubusercontent.com/mxh110708/mxh-route-desktop/custom-main/resources/public-rules-v1.json";
 export const PUBLIC_RULE_BUNDLE_SHA256 = "859c99058f5c9a481f01a8048dce72cf7ce1f623175c85815866b06e8fc29839";
+export const PUBLIC_RULE_BUNDLE_FILE = "public-rules-v1.json";
 const MAX_BYTES = 2 * 1024 * 1024;
 export const PUBLIC_RULE_NAMES = ["geosite-category-ads-all", "geosite-private", "geosite-cn", "geoip-cn", "geosite-geolocation-not-cn"] as const;
 type Rule = Record<string, unknown>;
@@ -35,7 +36,7 @@ export function portablePublicRules(content: string): string {
 }
 
 function decodeBundle(data: Buffer): Map<string, Buffer> {
-  if (data.length > MAX_BYTES || hash(data) !== PUBLIC_RULE_BUNDLE_SHA256) throw new Error("公共规则包校验失败，未使用下载内容。");
+  if (data.length > MAX_BYTES || hash(data) !== PUBLIC_RULE_BUNDLE_SHA256) throw new Error("公共规则包校验失败，未使用未校验的内容。");
   const value = JSON.parse(data.toString("utf8"));
   if (value.version !== 1 || !Array.isArray(value.files) || value.files.length !== PUBLIC_RULE_NAMES.length) throw new Error("Invalid public rule bundle");
   const files = new Map<string, Buffer>();
@@ -48,6 +49,10 @@ function decodeBundle(data: Buffer): Map<string, Buffer> {
   return files;
 }
 
+export function validatePublicRuleBundle(data: Buffer): void {
+  decodeBundle(data);
+}
+
 async function atomic(path: string, data: Buffer): Promise<void> {
   const temp = `${path}.${randomUUID()}.tmp`;
   try { await writeFile(temp, data); await rename(temp, path); } finally { await unlink(temp).catch(() => {}); }
@@ -55,7 +60,11 @@ async function atomic(path: string, data: Buffer): Promise<void> {
 
 export class PublicRuleCache {
   private pending: Promise<Map<string, string>> | undefined;
-  constructor(private readonly directory: string, private readonly request: typeof fetch = fetch) {}
+  constructor(
+    private readonly directory: string,
+    private readonly request: typeof fetch = fetch,
+    private readonly bundledPath?: string,
+  ) {}
 
   private async load(): Promise<Map<string, string>> {
     const directory = join(this.directory, PUBLIC_RULE_BUNDLE_SHA256);
@@ -64,15 +73,23 @@ export class PublicRuleCache {
     let data: Buffer | undefined;
     try { data = await readFile(bundlePath); decodeBundle(data); } catch { data = undefined; }
     if (!data) {
-      try {
-        // Only a fixed public GET. No profile content, node address, credential or user URL is sent.
-        const response = await this.request(PUBLIC_RULE_BUNDLE_URL, { signal: AbortSignal.timeout(30_000), redirect: "error" });
-        if (!response.ok || Number(response.headers.get("content-length")) > MAX_BYTES || !response.body) throw new Error("download failed");
-        const chunks: Buffer[] = []; let size = 0;
-        const reader = response.body.getReader();
-        for (;;) { const item = await reader.read(); if (item.done) break; size += item.value.length; if (size > MAX_BYTES) { await reader.cancel(); throw new Error("bundle too large"); } chunks.push(Buffer.from(item.value)); }
-        data = Buffer.concat(chunks); decodeBundle(data); await atomic(bundlePath, data);
-      } catch { throw new Error("无法下载或校验公共规则包，且没有有效缓存。请联网后重试；私人配置未上传。"); }
+      // First import must not depend on a proxy which needs this profile to start.
+      // The installer carries the same pinned public bundle as the download.
+      if (this.bundledPath) {
+        try { data = await readFile(this.bundledPath); decodeBundle(data); } catch { data = undefined; }
+      }
+      if (!data) {
+        try {
+          // Only a fixed public GET. No profile content, node address, credential or user URL is sent.
+          const response = await this.request(PUBLIC_RULE_BUNDLE_URL, { signal: AbortSignal.timeout(30_000), redirect: "error" });
+          if (!response.ok || Number(response.headers.get("content-length")) > MAX_BYTES || !response.body) throw new Error("download failed");
+          const chunks: Buffer[] = []; let size = 0;
+          const reader = response.body.getReader();
+          for (;;) { const item = await reader.read(); if (item.done) break; size += item.value.length; if (size > MAX_BYTES) { await reader.cancel(); throw new Error("bundle too large"); } chunks.push(Buffer.from(item.value)); }
+          data = Buffer.concat(chunks); decodeBundle(data);
+        } catch { throw new Error("没有有效缓存或应用内置公共规则包，联网下载或校验也失败。请重新安装完整的 MXH Route 或联网后重试；私人配置未上传。"); }
+      }
+      await atomic(bundlePath, data);
     }
     const paths = new Map<string, string>();
     for (const [name, body] of decodeBundle(data)) {

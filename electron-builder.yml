@@ -29,6 +29,8 @@ electronLanguages:
   - fa
   - ru
 extraResources:
+  - from: resources/public-rules-v1.json
+    to: public-rules-v1.json
   - from: resources/trayTemplate.png
     to: trayTemplate.png
   - from: resources/trayTemplate@2x.png

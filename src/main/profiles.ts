@@ -1,7 +1,7 @@
 import { ConnectError } from "@connectrpc/connect";
 import { assertConfigRpcSize } from "./rpcLimits";
 import { BrowserWindow, app, dialog, ipcMain, net } from "electron";
-import { PublicRuleCache, portablePublicRules } from "./publicRules";
+import { PUBLIC_RULE_BUNDLE_FILE, PublicRuleCache, portablePublicRules } from "./publicRules";
 import {
   copyFile,
   mkdir,
@@ -38,6 +38,7 @@ import {
   type CaptureMode,
 } from "./runtimeConfig";
 import { serviceStartOptions } from "./settings";
+import { resourcePath } from "./resources";
 import { userAgent } from "./userAgent";
 import { applicationService } from "./worker";
 import { daemonState } from "./state";
@@ -250,7 +251,8 @@ async function checkConfig(content: string): Promise<void> {
 let publicRuleCache: PublicRuleCache | undefined;
 function preparePublicRules(content: string): Promise<string> {
   publicRuleCache ??= new PublicRuleCache(join(app.getPath("userData"), "public-rule-cache"),
-    ((url, options) => net.fetch(url instanceof URL ? url.toString() : url, options)) as typeof fetch);
+    ((url, options) => net.fetch(url instanceof URL ? url.toString() : url, options)) as typeof fetch,
+    resourcePath(PUBLIC_RULE_BUNDLE_FILE));
   return publicRuleCache.prepare(content);
 }
 

@@ -13,6 +13,7 @@ import { findBoxDirectory } from "./sing-box";
 import { configureReproducibleBuild } from "./reproducibility";
 import { readApplicationVersion, readGoVersion } from "./version";
 import { buildWindowsShareModule } from "./windowsShare";
+import { PUBLIC_RULE_BUNDLE_FILE, validatePublicRuleBundle } from "../src/main/publicRules";
 
 const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -635,6 +636,8 @@ async function packageLinux() {
 
 async function main(): Promise<void> {
   console.info(`[package] SOURCE_DATE_EPOCH=${sourceDateEpoch}`);
+  // Every packaging path must include a usable, pinned offline bootstrap bundle.
+  validatePublicRuleBundle(fs.readFileSync(path.join(repositoryRoot, "resources", PUBLIC_RULE_BUNDLE_FILE)));
   verifyGoVersion();
   if (packageMode !== "win-architecture") {
     ensureGenerated();
